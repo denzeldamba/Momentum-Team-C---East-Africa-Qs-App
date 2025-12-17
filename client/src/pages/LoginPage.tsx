@@ -1,64 +1,71 @@
 import React, { useState } from 'react';
 import { useAuth } from '../lib/AuthContext';
 import { Button } from '../Components/ui/button';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom'; 
+import { Mail, CheckCircle, X } from 'lucide-react';
 
-interface Message {
+interface AuthMessageProps {
     message: string | null;
     type: 'success' | 'error' | null;
 }
 
-// --- 1. MOVE AuthMessage OUTSIDE THE RENDER FUNCTION ---
-interface AuthMessageProps {
-    message: Message | { message: null, type: null }; 
-}
+const AuthMessage: React.FC<AuthMessageProps> = ({ message, type }) => {
+    if (!message) return null;
+    const isSuccess = type === 'success';
+    const baseClass = "p-4 rounded-xl text-sm font-medium flex items-center space-x-3 shadow-lg";
+    const msgClass = isSuccess
+        ? "bg-green-700 text-white dark:bg-green-800"
+        : "bg-red-700 text-white dark:bg-red-800";
 
-const AuthMessage: React.FC<AuthMessageProps> = ({ message }) => {
-    // Ensure 'message' structure is checked before access
-    if (!message || !message.message) return null; 
-    
-    const baseClass = "p-3 rounded-lg text-sm mb-4";
-    const msgClass = message.type === 'success' 
-        ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" 
-        : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200";
-        
-    return <div className={`${baseClass} ${msgClass}`}>{message.message}</div>;
+    return (
+        <div className={`${baseClass} ${msgClass}`}>
+            {isSuccess ? <CheckCircle size={20} /> : <X size={20} />}
+            <span>{message}</span>
+        </div>
+    );
 };
-// --- END AuthMessage ---
 
 const LoginPage: React.FC = () => {
-    const { handleLogin, isLoading, message, setMessage } = useAuth();
+    const { handleLogin, loading, authError, authSuccess, handleBackTransition } = useAuth();
     const [email, setEmail] = useState('');
+    const navigate = useNavigate();
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (email) {
             handleLogin(email);
-        } else {
-            if (setMessage) {
-                setMessage({ message: 'Please enter a valid email address.', type: 'error' });
-            }
         }
     };
-    
+
+    let statusMessage = null;
+    let statusType: 'success' | 'error' | null = null;
+
+    if (authSuccess) {
+        statusMessage = "Magic Link Sent! Check your email to complete login.";
+        statusType = 'success';
+    } else if (authError) {
+        statusMessage = authError;
+        statusType = 'error';
+    }
+
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900 p-4">
-            <div className="w-full max-w-md bg-white dark:bg-gray-800 p-8 rounded-xl shadow-2xl space-y-6">
+        <div className="min-h-screen flex items-center justify-center bg-black p-4">
+            <div className="w-full max-w-md bg-gray-900 p-8 rounded-xl shadow-[0_0_40px_rgba(255,193,7,0.3)] space-y-6 border border-gray-700">
                 <div className="text-center">
-                    <h2 className="text-3xl font-extrabold text-gray-900 dark:text-white">Sign In</h2>
-                    <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                        Enter your email for the secure Magic Link to log in.
+                    <h2 className="text-3xl font-extrabold text-yellow-400">QS Pocket Knife</h2>
+                    <p className="mt-2 text-sm text-gray-400">
+                        Sign in for secure, **Offline-First** access to your projects.
                     </p>
                 </div>
-                
-                {/* 2. Pass the message state as a prop */}
-                <AuthMessage message={message} />
+
+                <AuthMessage message={statusMessage} type={statusType} />
 
                 <form onSubmit={handleSubmit} className="space-y-4">
-                    <div>
-                        <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                            Email Address
+                    <div className="relative">
+                        <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-1">
+                            Email Address (Magic Link Login)
                         </label>
+                        <Mail size={18} className="absolute left-3 top-9 text-gray-500" />
                         <input
                             id="email"
                             name="email"
@@ -67,23 +74,35 @@ const LoginPage: React.FC = () => {
                             required
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
-                            className="mt-1 block w-full p-3 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                            // ADDED PLACEHOLDER BELOW
+                            placeholder="example@gmail.com"
+                            className="mt-1 block w-full pl-10 pr-3 py-3 border border-gray-600 rounded-lg shadow-sm focus:ring-amber-500 focus:border-amber-500 bg-gray-800 text-white placeholder-gray-500 outline-none transition-all"
                         />
                     </div>
-                    
+
                     <Button
                         type="submit"
-                        disabled={isLoading}
-                        className="w-full bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white py-3"
+                        disabled={loading}
+                        className="w-full bg-amber-500 hover:bg-yellow-400 text-gray-900 font-bold py-3 shadow-xl transition transform hover:scale-[1.01] flex items-center justify-center space-x-2"
                     >
-                        {isLoading ? 'Sending Link...' : 'Send Magic Link'}
+                        {loading ? (
+                            <span className="flex items-center space-x-2">
+                                <span className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-gray-900"></span>
+                                <span>Sending Link...</span>
+                            </span>
+                        ) : (
+                            'Send Secure Magic Link'
+                        )}
                     </Button>
                 </form>
-                
-                <div className="text-center text-sm text-gray-500 dark:text-gray-400">
-                    <Link to="/" className="font-medium text-blue-600 hover:text-blue-500 dark:text-blue-400">
+
+                <div className="text-center text-sm text-gray-500">
+                    <button 
+                        onClick={() => handleBackTransition(navigate)}
+                        className="font-medium text-blue-400 hover:text-amber-500 transition bg-transparent border-none cursor-pointer"
+                    >
                         ← Back to App Description
-                    </Link>
+                    </button>
                 </div>
             </div>
         </div>

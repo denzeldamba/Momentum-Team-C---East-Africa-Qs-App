@@ -15,12 +15,17 @@ interface Message {
 
 interface AuthContextType {
     session: Session | null;
-    isLoading: boolean;
+    isLoading: boolean;     // The global gatekeeper for the SplashScreen
+    loading: boolean;       // Restored: Specific for button loading states
+    authError: string | null; // Restored: For the login form error display
+    authSuccess: boolean;   // Restored: For success confirmation
     message: Message;
     setMessage: React.Dispatch<React.SetStateAction<Message>>;
     supabase: SupabaseClient;
     handleLogin: (email: string) => Promise<void>;
     handleLogout: () => Promise<void>;
+    handleLoginTransition: (navigate: (path: string) => void) => Promise<void>;
+    handleBackTransition: (navigate: (path: string) => void) => Promise<void>; // Added
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -45,7 +50,7 @@ const SplashScreen: React.FC<{ message: string }> = ({ message }) => {
                 <div className="animate-spin-slow absolute inset-0 border-4 border-t-green-500 border-r-green-500 border-b-transparent border-l-transparent rounded-full opacity-70"></div>
                 <div className="animate-spin-fast absolute inset-2 border-3 border-t-transparent border-r-transparent border-b-green-400 border-l-green-400 rounded-full opacity-90"></div>
             </div>
-            <h1 className="text-2xl font-bold mb-1 text-green-400 tracking-wider">QS POCKET KNIFE</h1>
+            <h1 className="text-2xl font-bold mb-1 text-green-400 tracking-wider uppercase">QS Pocket Knife</h1>
             <p className="text-gray-500 text-xs uppercase tracking-widest">{message}</p>
         </div>
     );
@@ -54,70 +59,91 @@ const SplashScreen: React.FC<{ message: string }> = ({ message }) => {
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [session, setSession] = useState<Session | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [loading, setLoading] = useState(false); 
+    const [authError, setAuthError] = useState<string | null>(null);
+    const [authSuccess, setAuthSuccess] = useState(false);
     const [verifying, setVerifying] = useState(false);
     const [message, setMessage] = useState<Message>({ message: null, type: null });
 
     useEffect(() => {
-        const params = new URLSearchParams(window.location.search);
-        const token_hash = params.get("token_hash");
-
         const initializeAuth = async () => {
-            // 3-SECOND DELAY FOR THE BRANDED EXPERIENCE ---
             const timer = new Promise(resolve => setTimeout(resolve, 3000));
-
             try {
+                const params = new URLSearchParams(window.location.search);
+                const token_hash = params.get("token_hash");
+
                 if (token_hash) {
                     setVerifying(true);
                     const { error } = await supabase.auth.verifyOtp({ token_hash, type: "email" });
-                    if (error) setMessage({ message: error.message, type: 'error' });
+                    if (error) setAuthError(error.message);
                     else window.history.replaceState({}, document.title, "/");
                     setVerifying(false);
                 } else {
                     const { data: { session: currentSession } } = await supabase.auth.getSession();
                     setSession(currentSession);
                 }
-            } catch (err) {
-                console.error("Initialization error:", err);
             } finally {
-                // Wait until the 3 seconds are up before hiding the splash screen
                 await timer;
                 setIsLoading(false);
             }
         };
-
         initializeAuth();
-
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, currentSession) => {
-            setSession(currentSession);
-            // We don't trigger setIsLoading(false) here to avoid cutting the 3s timer short
-        });
-
-        return () => subscription.unsubscribe();
     }, []);
 
-    const handleLogin = async (email: string) => {
+    const handleLoginTransition = async (navigate: (path: string) => void) => {
         setIsLoading(true);
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        navigate("/login");
+        setIsLoading(false);
+    };
+
+    // Added 1.8s back transition
+    const handleBackTransition = async (navigate: (path: string) => void) => {
+        setIsLoading(true);
+        await new Promise(resolve => setTimeout(resolve, 1800));
+        navigate("/");
+        setIsLoading(false);
+    };
+
+    const handleLogin = async (email: string) => {
+        setLoading(true);
+        setAuthError(null);
+        setAuthSuccess(false);
+
         const { error } = await supabase.auth.signInWithOtp({
             email,
             options: { emailRedirectTo: window.location.origin },
         });
-        if (error) setMessage({ message: error.message, type: 'error' });
-        else setMessage({ message: "Check your email!", type: 'success' });
-        setIsLoading(false);
+
+        if (error) {
+            setAuthError(error.message);
+            toast.error(error.message);
+        } else {
+            setAuthSuccess(true);
+            toast.success("Check your email for the login link!");
+        }
+        setLoading(false);
     };
 
     const handleLogout = async () => {
+        setIsLoading(true);
+        await new Promise(resolve => setTimeout(resolve, 1000));
         await supabase.auth.signOut();
         setSession(null);
-        toast.success("Logged out");
+        setIsLoading(false);
+        toast.success("Logged out successfully");
     };
 
     if (isLoading) {
-        return <SplashScreen message={verifying ? "Verifying access..." : "Initializing application..."} />;
+        return <SplashScreen message={verifying ? "Verifying Credentials..." : "Initializing Toolkit..."} />;
     }
 
     return (
-        <AuthContext.Provider value={{ session, isLoading, message, setMessage, supabase, handleLogin, handleLogout }}>
+        <AuthContext.Provider value={{ 
+            session, isLoading, loading, authError, authSuccess, 
+            message, setMessage, supabase, handleLogin, handleLogout, 
+            handleLoginTransition, handleBackTransition 
+        }}>
             {children}
         </AuthContext.Provider>
     );

@@ -6,7 +6,8 @@ const supabase = createClient(
     import.meta.env.VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY as string
 );
 
-<<<<<<< HEAD
+
+export default supabase;
 export default function Auth() {
 	const [loading, setLoading] = useState(false);
 	const [email, setEmail] = useState("");
@@ -170,6 +171,4 @@ export default function Auth() {
 		</div>
 	);
 }
-=======
-export default supabase;
->>>>>>> 9ba94deebf28301e66732ef8c6fafab4f42aec8a
+
