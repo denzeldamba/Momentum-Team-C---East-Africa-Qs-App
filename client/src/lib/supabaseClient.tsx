@@ -1,13 +1,12 @@
 import { createClient } from "@supabase/supabase-js";
+import { useState } from "react";
 
 // Initialize the Supabase client instance
-const supabase = createClient(
-    import.meta.env.VITE_SUPABASE_URL as string,
-    import.meta.env.VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY as string
+export const supabase = createClient(
+	import.meta.env.VITE_SUPABASE_URL as string,
+	import.meta.env.VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY as string
 );
 
-
-export default supabase;
 export default function Auth() {
 	const [loading, setLoading] = useState(false);
 	const [email, setEmail] = useState("");
@@ -144,7 +143,9 @@ export default function Auth() {
 	// Login form
 	return (
 		<div className={baseContainer}>
-			<h1 className="text-3xl text-gray-500 font-bold mb-4">Quantity Surveying App</h1>
+			<h1 className="text-3xl text-gray-500 font-bold mb-4">
+				Quantity Surveying App
+			</h1>
 			<p className="text-gray-700 mb-6 text-center">
 				Sign in via magic link with your email below
 			</p>
@@ -171,4 +172,3 @@ export default function Auth() {
 		</div>
 	);
 }
-
