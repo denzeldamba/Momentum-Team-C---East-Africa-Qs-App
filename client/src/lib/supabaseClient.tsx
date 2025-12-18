@@ -1,8 +1,9 @@
-import { createClient } from "@supabase/supabase-js";
-import { useState } from "react";
+import { AuthError, createClient } from "@supabase/supabase-js";
+import { useEffect, useState, type FormEvent } from "react";
+import toast from "react-hot-toast";
 
 // Initialize the Supabase client instance
-export const supabase = createClient(
+const supabase = createClient(
 	import.meta.env.VITE_SUPABASE_URL as string,
 	import.meta.env.VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY as string
 );
