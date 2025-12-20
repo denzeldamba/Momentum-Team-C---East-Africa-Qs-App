@@ -1,16 +1,17 @@
-import {
-	insertRecord,
-	updateRecord,
-	deleteRecord,
-	fetchRecords,
-	fetchRecordById,
-} from "../supabase/tables";
 import { IndexedDBManager } from "../lib/offline/indexedDB";
 import { SyncQueueManager } from "../lib/offline/sync-queue";
+import {
+	deleteRecord,
+	insertRecord,
+	updateRecord,
+} from "../lib/supabase/tables";
 import type { Project } from "../lib/types/db";
 
 const db = new IndexedDBManager();
 const queue = new SyncQueueManager(db);
+
+// temporary until auth is wired
+const SYSTEM_USER_ID = "offline-user";
 
 export const ProjectsService = {
 	async create(
@@ -24,11 +25,15 @@ export const ProjectsService = {
 		};
 
 		await db.put("projects", newProject);
+
 		await queue.add({
+			user_id: SYSTEM_USER_ID,
 			table_name: "projects",
 			record_id: newProject.id,
 			operation: "insert",
 			data: newProject,
+			sync_status: "pending",
+			retry_count: 0,
 		});
 
 		if (navigator.onLine) {
@@ -41,22 +46,27 @@ export const ProjectsService = {
 
 	async update(
 		id: string,
-		updates: Partial<Project>
+		updates: Partial<Omit<Project, "id" | "created_at">>
 	): Promise<Project | null> {
 		const project = await db.get<Project>("projects", id);
 		if (!project) return null;
 
-		const updatedProject = {
+		const updatedProject: Project = {
 			...project,
 			...updates,
 			updated_at: new Date().toISOString(),
 		};
+
 		await db.put("projects", updatedProject);
+
 		await queue.add({
+			user_id: SYSTEM_USER_ID,
 			table_name: "projects",
 			record_id: id,
 			operation: "update",
 			data: updatedProject,
+			sync_status: "pending",
+			retry_count: 0,
 		});
 
 		if (navigator.onLine) {
@@ -68,20 +78,19 @@ export const ProjectsService = {
 	},
 
 	async delete(id: string): Promise<void> {
-		await queue.add({
-			table_name: "projects",
-			record_id: id,
-			operation: "delete",
-		});
 		const project = await db.get<Project>("projects", id);
 		if (!project) return;
 
-		const deletedProject = {
-			...project,
-			deleted_at: new Date().toISOString(),
-			updated_at: new Date().toISOString(),
-		};
-		await db.put("projects", deletedProject);
+		await db.delete("projects", id);
+
+		await queue.add({
+			user_id: SYSTEM_USER_ID,
+			table_name: "projects",
+			record_id: id,
+			operation: "delete",
+			sync_status: "pending",
+			retry_count: 0,
+		});
 
 		if (navigator.onLine) {
 			await deleteRecord("projects", id);
@@ -90,8 +99,7 @@ export const ProjectsService = {
 	},
 
 	async getAll(): Promise<Project[]> {
-		const projects = await db.getAll<Project>("projects");
-		return projects.filter((p) => !p.deleted_at);
+		return await db.getAll<Project>("projects");
 	},
 
 	async getById(id: string): Promise<Project | null> {

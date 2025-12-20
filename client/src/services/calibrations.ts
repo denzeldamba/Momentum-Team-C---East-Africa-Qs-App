@@ -5,65 +5,78 @@ import type { Calibration } from "../lib/types/db";
 const db = new IndexedDBManager();
 const queue = new SyncQueueManager(db);
 
+// TEMP: until auth is wired
+const SYSTEM_USER_ID = "offline-user";
+
 export const CalibrationsService = {
 	async create(
-		calibration: Omit<Calibration, "id" | "created_at" | "updated_at">
-	) {
+		calibration: Omit<Calibration, "id" | "created_at">
+	): Promise<Calibration> {
 		const newCal: Calibration = {
 			...calibration,
 			id: crypto.randomUUID(),
 			created_at: new Date().toISOString(),
-			updated_at: new Date().toISOString(),
 		};
 
 		await db.put("calibrations", newCal);
+
 		await queue.add({
+			user_id: SYSTEM_USER_ID,
 			table_name: "calibrations",
 			record_id: newCal.id,
 			operation: "insert",
 			data: newCal,
+			sync_status: "pending",
+			retry_count: 0,
 		});
 
 		return newCal;
 	},
 
-	async update(id: string, updates: Partial<Calibration>) {
+	async update(
+		id: string,
+		updates: Partial<Omit<Calibration, "id" | "created_at">>
+	): Promise<Calibration | null> {
 		const cal = await db.get<Calibration>("calibrations", id);
 		if (!cal) return null;
 
-		const updated = {
+		const updated: Calibration = {
 			...cal,
 			...updates,
-			updated_at: new Date().toISOString(),
 		};
+
 		await db.put("calibrations", updated);
+
 		await queue.add({
+			user_id: SYSTEM_USER_ID,
 			table_name: "calibrations",
 			record_id: id,
 			operation: "update",
 			data: updated,
+			sync_status: "pending",
+			retry_count: 0,
 		});
 
 		return updated;
 	},
 
-	async delete(id: string) {
+	async delete(id: string): Promise<void> {
+		const cal = await db.get<Calibration>("calibrations", id);
+		if (!cal) return;
+
+		await db.delete("calibrations", id);
+
 		await queue.add({
+			user_id: SYSTEM_USER_ID,
 			table_name: "calibrations",
 			record_id: id,
 			operation: "delete",
-		});
-
-		const cal = await db.get<Calibration>("calibrations", id);
-		if (!cal) return;
-		await db.put("calibrations", {
-			...cal,
-			deleted_at: new Date().toISOString(),
+			sync_status: "pending",
+			retry_count: 0,
 		});
 	},
 
 	async getAll(): Promise<Calibration[]> {
-		const all = await db.getAll<Calibration>("calibrations");
-		return all.filter((c) => !c.deleted_at);
+		return await db.getAll<Calibration>("calibrations");
 	},
 };

@@ -5,10 +5,13 @@ import type { PaymentCertificate } from "../lib/types/db";
 const db = new IndexedDBManager();
 const queue = new SyncQueueManager(db);
 
+// temporary until auth context is wired
+const SYSTEM_USER_ID = "offline-user";
+
 export const PaymentsService = {
 	async create(
-		payment: Omit<PaymentCertificate, "id" | "created_at" | "updated_at">
-	) {
+		payment: Omit<PaymentCertificate, "id" | "created_at">
+	): Promise<PaymentCertificate> {
 		const newPayment: PaymentCertificate = {
 			...payment,
 			id: crypto.randomUUID(),
@@ -16,55 +19,64 @@ export const PaymentsService = {
 		};
 
 		await db.put("payments", newPayment);
+
 		await queue.add({
+			user_id: SYSTEM_USER_ID,
 			table_name: "payments",
 			record_id: newPayment.id,
 			operation: "insert",
 			data: newPayment,
+			sync_status: "pending",
+			retry_count: 0,
 		});
 
 		return newPayment;
 	},
 
-	async update(id: string, updates: Partial<PaymentCertificate>) {
+	async update(
+		id: string,
+		updates: Partial<Omit<PaymentCertificate, "id" | "created_at">>
+	): Promise<PaymentCertificate | null> {
 		const pay = await db.get<PaymentCertificate>("payments", id);
 		if (!pay) return null;
 
 		const updated: PaymentCertificate = {
 			...pay,
 			...updates,
-			updated_at: new Date().toISOString(),
 		};
 
 		await db.put("payments", updated);
+
 		await queue.add({
+			user_id: SYSTEM_USER_ID,
 			table_name: "payments",
 			record_id: id,
 			operation: "update",
 			data: updated,
+			sync_status: "pending",
+			retry_count: 0,
 		});
 
 		return updated;
 	},
 
-	async delete(id: string) {
-		await queue.add({
-			table_name: "payments",
-			record_id: id,
-			operation: "delete",
-		});
-
+	async delete(id: string): Promise<void> {
 		const pay = await db.get<PaymentCertificate>("payments", id);
 		if (!pay) return;
 
-		await db.put("payments", {
-			...pay,
-			deleted_at: new Date().toISOString(),
+		await db.delete("payments", id);
+
+		await queue.add({
+			user_id: SYSTEM_USER_ID,
+			table_name: "payments",
+			record_id: id,
+			operation: "delete",
+			sync_status: "pending",
+			retry_count: 0,
 		});
 	},
 
 	async getAll(): Promise<PaymentCertificate[]> {
-		const all = await db.getAll<PaymentCertificate>("payments");
-		return all.filter((p) => !p.deleted_at);
+		return await db.getAll<PaymentCertificate>("payments");
 	},
 };

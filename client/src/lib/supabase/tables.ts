@@ -5,12 +5,13 @@ import { supabase } from "./client";
  */
 export async function insertRecord<T>(table: string, data: T): Promise<T> {
 	const { data: result, error } = await supabase
-		.from<T>(table)
+		.from(table)
 		.insert(data)
 		.select()
 		.single();
+
 	if (error) throw error;
-	return result;
+	return result as T;
 }
 
 /**
@@ -22,23 +23,25 @@ export async function updateRecord<T>(
 	data: Partial<T>
 ): Promise<T> {
 	const { data: result, error } = await supabase
-		.from<T>(table)
+		.from(table)
 		.update(data)
 		.eq("id", id)
 		.select()
 		.single();
+
 	if (error) throw error;
-	return result;
+	return result as T;
 }
 
 /**
- * Soft deletes a record by ID (sets deleted_at timestamp).
+ * Soft deletes a record by ID.
  */
 export async function deleteRecord(table: string, id: string): Promise<void> {
 	const { error } = await supabase
 		.from(table)
 		.update({ deleted_at: new Date().toISOString() })
 		.eq("id", id);
+
 	if (error) throw error;
 }
 
@@ -47,10 +50,10 @@ export async function deleteRecord(table: string, id: string): Promise<void> {
  */
 export async function fetchRecords<T>(
 	table: string,
-	filters?: Record<string, any>,
+	filters?: Record<string, unknown>,
 	excludeDeleted = true
 ): Promise<T[]> {
-	let query = supabase.from<T>(table).select("*");
+	let query = supabase.from(table).select("*");
 
 	if (filters) {
 		for (const [key, value] of Object.entries(filters)) {
@@ -64,7 +67,8 @@ export async function fetchRecords<T>(
 
 	const { data, error } = await query;
 	if (error) throw error;
-	return data || [];
+
+	return (data ?? []) as T[];
 }
 
 /**
@@ -75,10 +79,11 @@ export async function fetchRecordById<T>(
 	id: string
 ): Promise<T | null> {
 	const { data, error } = await supabase
-		.from<T>(table)
+		.from(table)
 		.select("*")
 		.eq("id", id)
 		.single();
-	if (error && error.code !== "PGRST116") throw error; // PGRST116 = no rows
-	return data || null;
+
+	if (error && error.code !== "PGRST116") throw error;
+	return (data ?? null) as T | null;
 }
