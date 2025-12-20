@@ -36,6 +36,11 @@ CREATE TABLE drawings (
     synced_at TIMESTAMP WITH TIME ZONE
 );
 
+-- added
+ALTER TABLE drawings
+ADD COLUMN file_path TEXT NOT NULL,
+ADD COLUMN mime_type TEXT;
+
 -- RLS Policies
 ALTER TABLE drawings ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can view own drawings" ON drawings FOR SELECT 
@@ -112,6 +117,10 @@ CREATE TABLE smm_templates (
     display_order INTEGER,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+ALTER TABLE smm_templates ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Authenticated users can read active SMM templates" ON smm_templates
+FOR SELECT TO authenticated USING (is_active = true);
 
 -- Example formula JSONB structure:
 -- Concrete: {"type": "volume", "inputs": ["length", "width", "depth"], "calculation": "length * width * depth * waste_factor"}
@@ -191,6 +200,13 @@ CREATE TABLE payment_certificates (
     UNIQUE(project_id, certificate_number)
 );
 
+-- added
+ALTER TABLE payment_certificates
+ADD COLUMN file_path TEXT NOT NULL,
+ADD COLUMN file_name TEXT,
+ADD COLUMN file_size INTEGER;
+
+
 ALTER TABLE payment_certificates ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can manage certificates" ON payment_certificates FOR ALL 
     USING (project_id IN (SELECT id FROM projects WHERE user_id = auth.uid()));
@@ -241,3 +257,162 @@ CREATE INDEX idx_measurements_drawing_id ON measurements(drawing_id);
 CREATE INDEX idx_bill_items_project_id ON bill_items(project_id);
 CREATE INDEX idx_certificates_project_id ON payment_certificates(project_id);
 CREATE INDEX idx_sync_queue_user_status ON sync_queue(user_id, sync_status);
+
+
+-- ============================================
+-- Storage Buckets Setup
+-- ============================================
+
+-- ============================================
+-- DRAWINGS STORAGE BUCKET
+-- ============================================
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('drawings', 'drawings', false);
+
+CREATE POLICY "Users can upload their own drawings"
+ON storage.objects FOR INSERT
+WITH CHECK (
+  bucket_id = 'drawings' AND
+  auth.uid()::text = (storage.foldername(name))[1]
+);
+
+CREATE POLICY "Users can view their own drawings"
+ON storage.objects FOR SELECT
+USING (
+  bucket_id = 'drawings' AND
+  auth.uid()::text = (storage.foldername(name))[1]
+);
+
+CREATE POLICY "Users can update their own drawings"
+ON storage.objects FOR UPDATE
+USING (
+  bucket_id = 'drawings' AND
+  auth.uid()::text = (storage.foldername(name))[1]
+)
+WITH CHECK (
+  bucket_id = 'drawings' AND
+  auth.uid()::text = (storage.foldername(name))[1]
+);
+
+CREATE POLICY "Users can delete their own drawings"
+ON storage.objects FOR DELETE
+USING (
+  bucket_id = 'drawings' AND
+  auth.uid()::text = (storage.foldername(name))[1]
+);
+
+
+-- ============================================
+-- CALIBRATIONS STORAGE BUCKET
+-- ============================================
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('calibrations', 'calibrations', false);
+
+CREATE POLICY "Users can upload their own calibrations"
+ON storage.objects FOR INSERT
+WITH CHECK (
+  bucket_id = 'calibrations' AND
+  auth.uid()::text = (storage.foldername(name))[1]
+);
+
+CREATE POLICY "Users can view their own calibrations"
+ON storage.objects FOR SELECT
+USING (
+  bucket_id = 'calibrations' AND
+  auth.uid()::text = (storage.foldername(name))[1]
+);
+
+CREATE POLICY "Users can update their own calibrations"
+ON storage.objects FOR UPDATE
+USING (
+  bucket_id = 'calibrations' AND
+  auth.uid()::text = (storage.foldername(name))[1]
+)
+WITH CHECK (
+  bucket_id = 'calibrations' AND
+  auth.uid()::text = (storage.foldername(name))[1]
+);
+
+CREATE POLICY "Users can delete their own calibrations"
+ON storage.objects FOR DELETE
+USING (
+  bucket_id = 'calibrations' AND
+  auth.uid()::text = (storage.foldername(name))[1]
+);
+
+
+-- ============================================
+-- PAYMENT CERTIFICATES STORAGE BUCKET
+-- ============================================
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('payment_certificates', 'payment_certificates', false);
+
+CREATE POLICY "Users can upload their own payment certificates"
+ON storage.objects FOR INSERT
+WITH CHECK (
+  bucket_id = 'payment_certificates' AND
+  auth.uid()::text = (storage.foldername(name))[1]
+);
+
+CREATE POLICY "Users can view their own payment certificates"
+ON storage.objects FOR SELECT
+USING (
+  bucket_id = 'payment_certificates' AND
+  auth.uid()::text = (storage.foldername(name))[1]
+);
+
+CREATE POLICY "Users can update their own payment certificates"
+ON storage.objects FOR UPDATE
+USING (
+  bucket_id = 'payment_certificates' AND
+  auth.uid()::text = (storage.foldername(name))[1]
+)
+WITH CHECK (
+  bucket_id = 'payment_certificates' AND
+  auth.uid()::text = (storage.foldername(name))[1]
+);
+
+CREATE POLICY "Users can delete their own payment certificates"
+ON storage.objects FOR DELETE
+USING (
+  bucket_id = 'payment_certificates' AND
+  auth.uid()::text = (storage.foldername(name))[1]
+);
+
+-- ============================================
+-- SMM TEMPLATES STORAGE BUCKET
+-- ============================================
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('smm_templates', 'smm_templates', false);
+
+CREATE POLICY "Users can upload their own smm templates"
+ON storage.objects FOR INSERT
+WITH CHECK (
+  bucket_id = 'smm_templates' AND
+  auth.uid()::text = (storage.foldername(name))[1]
+);
+
+CREATE POLICY "Users can view their own smm templates"
+ON storage.objects FOR SELECT
+USING (
+  bucket_id = 'smm_templates' AND
+  auth.uid()::text = (storage.foldername(name))[1]
+);
+
+CREATE POLICY "Users can update their own smm templates"
+ON storage.objects FOR UPDATE
+USING (
+  bucket_id = 'smm_templates' AND
+  auth.uid()::text = (storage.foldername(name))[1]
+)
+WITH CHECK (
+  bucket_id = 'smm_templates' AND
+  auth.uid()::text = (storage.foldername(name))[1]
+);
+
+CREATE POLICY "Users can delete their own smm templates"
+ON storage.objects FOR DELETE
+USING (
+  bucket_id = 'smm_templates' AND
+  auth.uid()::text = (storage.foldername(name))[1]
+);
