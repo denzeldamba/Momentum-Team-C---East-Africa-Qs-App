@@ -1,0 +1,66 @@
+================================================
+PROJECT: QS POCKET KNIFE - ARCHITECTURE OVERVIEW
+================================================
+
+1. THE "APP ENTRY" PHILOSOPHY
+-----------------------------
+QS Pocket Knife is designed for a "Premium Tool" feel. The application 
+uses a "Black & Green" high-contrast theme. To prevent a "white flash" 
+or unstyled content (FOUC) during load, we control the entire entry 
+sequence through the AuthContext.
+
+2. COMPONENT MAP & RESPONSIBILITIES
+-----------------------------------
+
+A. src/lib/AuthContext.tsx (The Brain)
+   - ROLE: The gatekeeper of the application.
+   - PROCESS: 
+     1. On startup, it triggers a mandatory 3-second 'SplashScreen'.
+     2. It checks Supabase for an active user session or a Magic Link token.
+     3. It provides 'session', 'isLoading', and 'handleLogin/Logout' to 
+        the rest of the app via the 'useAuth' hook.
+   - NOTE: We use a 3000ms timer here to ensure the branding (spinning 
+     green loader) is established before the UI reveals itself.
+
+B. src/App.tsx (The Router)
+   - ROLE: Decision Maker.
+   - PROCESS:
+     1. It consumes 'isLoading' from AuthContext. If true, it returns 
+        'null' (allowing the SplashScreen to stay visible).
+     2. If 'session' exists: Renders <AppShell /> (The Private App).
+     3. If no 'session': Renders <PublicRoutes /> (Marketing & Login).
+
+C. src/pages/MarketingPage.tsx (The Front Door)
+   - ROLE: User Acquisition.
+   - UI: Features high-quality imagery of people using tech, blended 
+     into a black background using CSS overlays. 
+   - ACTION: Contains links to the /login route.
+
+D. src/pages/LoginPage.tsx (The Keyhole)
+   - ROLE: Authentication via Magic Link.
+   - PROCESS: Sends a request to Supabase Auth. The user is redirected back 
+     to the app, where AuthContext picks up the token and logs them in.
+
+3. KEY TECHNICAL FIXES (DEC 2025)
+---------------------------------
+
+- CASCADING RENDERS: Fixed a bug where state updates during initialization 
+  caused infinite loops. Loading state is now initialized based on URL 
+  params to prevent "Double Setting" state.
+  
+- VITE FAST REFRESH: Added 'eslint-disable' for React Refresh to allow 
+  exporting both the Provider and the Hook from the same file.
+
+- CSS ANIMATIONS: The green spinners in the SplashScreen are pure CSS 
+  keyframes injected via a <style> tag to ensure they work even before 
+  external stylesheets are fully parsed.
+
+4. HOW TO ADD A PROTECTED FEATURE
+---------------------------------
+To add a new private feature, navigate to 'src/Components/layout/AppShell.tsx'. 
+Since this component only renders if a 'session' exists, all logic inside 
+it is automatically protected.
+
+================================================
+"Sharp tools for sharp minds."
+================================================
