@@ -15,17 +15,19 @@ interface Message {
 
 interface AuthContextType {
     session: Session | null;
-    isLoading: boolean;     // The global gatekeeper for the SplashScreen
-    loading: boolean;       // Restored: Specific for button loading states
-    authError: string | null; // Restored: For the login form error display
-    authSuccess: boolean;   // Restored: For success confirmation
+    isLoading: boolean;
+    loading: boolean;
+    authError: string | null;
+    authSuccess: boolean;
     message: Message;
     setMessage: React.Dispatch<React.SetStateAction<Message>>;
     supabase: SupabaseClient;
+    theme: 'light' | 'dark';
+    toggleTheme: () => void;
     handleLogin: (email: string) => Promise<void>;
     handleLogout: () => Promise<void>;
     handleLoginTransition: (navigate: (path: string) => void) => Promise<void>;
-    handleBackTransition: (navigate: (path: string) => void) => Promise<void>; // Added
+    handleBackTransition: (navigate: (path: string) => void) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -36,21 +38,24 @@ export const useAuth = (): AuthContextType => {
     return context;
 };
 
-const SplashScreen: React.FC<{ message: string }> = ({ message }) => {
-    const animationStyles = `
-@keyframes spin-slow { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-@keyframes spin-fast { from { transform: rotate(360deg); } to { transform: rotate(0deg); } }
-.animate-spin-slow { animation: spin-slow 2s linear infinite; }
-.animate-spin-fast { animation: spin-fast 1.5s reverse linear infinite; }
-`;
+const SplashScreen: React.FC<{ message: string, theme: string }> = ({ message, theme }) => {
+    // Determine background color based on theme
+    const bgColor = theme === 'dark' ? '#000000' : '#f9fafb';
+    const textColor = theme === 'dark' ? '#ffffff' : '#111827';
+    const brandColor = theme === 'dark' ? '#facc15' : '#ca8a04'; // Yellow-400 vs Yellow-600
+
     return (
-        <div className="fixed inset-0 z-9999 flex flex-col items-center justify-center bg-black text-white">
-            <style>{animationStyles}</style>
+        <div 
+            style={{ backgroundColor: bgColor, color: textColor }}
+            className="fixed inset-0 z-50 flex flex-col items-center justify-center transition-colors duration-500"
+        >
             <div className="relative w-16 h-16 mb-6">
-                <div className="animate-spin-slow absolute inset-0 border-4 border-t-green-500 border-r-green-500 border-b-transparent border-l-transparent rounded-full opacity-70"></div>
-                <div className="animate-spin-fast absolute inset-2 border-3 border-t-transparent border-r-transparent border-b-green-400 border-l-green-400 rounded-full opacity-90"></div>
+                <div className="animate-spin absolute inset-0 border-4 border-t-yellow-500 border-r-yellow-500 border-b-transparent border-l-transparent rounded-full opacity-70"></div>
+                <div className="animate-spin absolute inset-2 border-3 border-t-transparent border-r-transparent border-b-yellow-400 border-l-yellow-400 rounded-full opacity-90" style={{ animationDirection: 'reverse', animationDuration: '1s' }}></div>
             </div>
-            <h1 className="text-2xl font-bold mb-1 text-green-400 tracking-wider uppercase">QS Pocket Knife</h1>
+            <h1 style={{ color: brandColor }} className="text-2xl font-bold mb-1 tracking-wider uppercase">
+                QS Pocket Knife
+            </h1>
             <p className="text-gray-500 text-xs uppercase tracking-widest">{message}</p>
         </div>
     );
@@ -64,10 +69,32 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const [authSuccess, setAuthSuccess] = useState(false);
     const [verifying, setVerifying] = useState(false);
     const [message, setMessage] = useState<Message>({ message: null, type: null });
+    
+    // 1. Initialize theme from localStorage
+    const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+        const saved = localStorage.getItem('theme');
+        return (saved === 'dark' || saved === 'light') ? saved : 'light';
+    });
+
+    // 2. This function toggles the state
+    const toggleTheme = () => {
+        setTheme(prev => (prev === 'light' ? 'dark' : 'light'));
+    };
+
+    // 3. This effect pushes the change to the actual HTML element
+    useEffect(() => {
+        const root = window.document.documentElement;
+        if (theme === 'dark') {
+            root.classList.add('dark');
+        } else {
+            root.classList.remove('dark');
+        }
+        localStorage.setItem('theme', theme);
+    }, [theme]);
 
     useEffect(() => {
         const initializeAuth = async () => {
-            const timer = new Promise(resolve => setTimeout(resolve, 3000));
+            const timer = new Promise(resolve => setTimeout(resolve, 2500));
             try {
                 const params = new URLSearchParams(window.location.search);
                 const token_hash = params.get("token_hash");
@@ -92,15 +119,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const handleLoginTransition = async (navigate: (path: string) => void) => {
         setIsLoading(true);
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise(resolve => setTimeout(resolve, 1500));
         navigate("/login");
         setIsLoading(false);
     };
 
-    // Added 1.8s back transition
     const handleBackTransition = async (navigate: (path: string) => void) => {
         setIsLoading(true);
-        await new Promise(resolve => setTimeout(resolve, 1800));
+        await new Promise(resolve => setTimeout(resolve, 1200));
         navigate("/");
         setIsLoading(false);
     };
@@ -109,18 +135,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setLoading(true);
         setAuthError(null);
         setAuthSuccess(false);
-
         const { error } = await supabase.auth.signInWithOtp({
             email,
             options: { emailRedirectTo: window.location.origin },
         });
-
         if (error) {
             setAuthError(error.message);
             toast.error(error.message);
         } else {
             setAuthSuccess(true);
-            toast.success("Check your email for the login link!");
+            toast.success("Check your email!");
         }
         setLoading(false);
     };
@@ -131,18 +155,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         await supabase.auth.signOut();
         setSession(null);
         setIsLoading(false);
-        toast.success("Logged out successfully");
+        toast.success("Logged out");
     };
 
     if (isLoading) {
-        return <SplashScreen message={verifying ? "Verifying Credentials..." : "Initializing Toolkit..."} />;
+        return <SplashScreen theme={theme} message={verifying ? "Verifying..." : "Loading Workspace..."} />;
     }
 
     return (
         <AuthContext.Provider value={{ 
             session, isLoading, loading, authError, authSuccess, 
-            message, setMessage, supabase, handleLogin, handleLogout, 
-            handleLoginTransition, handleBackTransition 
+            message, setMessage, supabase, theme, toggleTheme,
+            handleLogin, handleLogout, handleLoginTransition, handleBackTransition 
         }}>
             {children}
         </AuthContext.Provider>

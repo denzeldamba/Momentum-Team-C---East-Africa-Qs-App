@@ -1,1 +1,30 @@
 @import "tailwindcss";
+
+/* Define variables in standard CSS block to avoid "Unknown at rule" errors */
+:root {
+  --background: #ffffff;
+  --foreground: #27272a;
+  color-scheme: light;
+}
+
+:root.dark {
+  --background: #09090b;
+  --foreground: #f4f4f5;
+  color-scheme: dark;
+}
+
+@layer base {
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    /* This ensures a smooth transition across the whole app */
+    transition: background-color 300ms ease, color 300ms ease;
+    margin: 0;
+    font-family: system-ui, -apple-system, sans-serif;
+  }
+
+  /* Target all primary layout containers for transitions */
+  header, section, nav, footer, div {
+    transition: background-color 300ms ease, border-color 300ms ease, color 300ms ease;
+  }
+}

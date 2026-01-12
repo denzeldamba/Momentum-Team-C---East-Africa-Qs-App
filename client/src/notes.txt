@@ -64,3 +64,5 @@ it is automatically protected.
 ================================================
 "Sharp tools for sharp minds."
 ================================================
+
+set up the DashboardPage.tsx so it displays a "You are Offline" badge when the connection drops, while still allowing the QS to enter measurements?
