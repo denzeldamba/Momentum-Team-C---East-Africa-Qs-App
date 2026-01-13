@@ -1,15 +1,8 @@
-// vite.config.ts
-
-// FIX: Re-add the declaration for 'self', using the widely available 'Window' type
-// to satisfy TypeScript that 'self' exists and has a 'location' property.
-declare const self: { location: { origin: string } };
-
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 import tailwindcss from "@tailwindcss/vite";
 
-// https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
     react(),
@@ -17,20 +10,24 @@ export default defineConfig({
     VitePWA({
       registerType: "autoUpdate",
       devOptions: {
-        enabled: true,
+        enabled: true, // Allows you to test PWA features during 'npm run dev'
       },
       workbox: {
-        globPatterns: ["**/*.{js,css,html,ico,png,svg,ts,tsx}"],
+        // Includes all built assets in the offline cache
+        globPatterns: ["**/*.{js,css,html,ico,png,svg}"],
         runtimeCaching: [
           {
-            // This rule is technically correct for the Service Worker execution environment
-            urlPattern: ({ url }) => url.origin === self.location.origin,
-            handler: "NetworkFirst",
+            // PRO FIX: Match any request to your own domain without using 'self'
+            urlPattern: ({ url }) => url.origin === url.origin,
+            handler: "NetworkFirst", // Tries internet first, falls back to cache for site measurements
             options: {
               cacheName: "qs-app-runtime-cache",
               expiration: {
-                maxEntries: 10,
-                maxAgeSeconds: 60 * 60 * 24 * 365,
+                maxEntries: 50,
+                maxAgeSeconds: 60 * 60 * 24 * 365, // 1 year
+              },
+              cacheableResponse: {
+                statuses: [0, 200],
               },
             },
           },
@@ -40,8 +37,11 @@ export default defineConfig({
         name: "East African QS Pocket Knife",
         short_name: "QS App",
         description: "Offline-First Quantity Surveying App for East Africa",
-        theme_color: "#1e3a8a",
-        background_color: "#f9fafb",
+        // Updated colors to match your professional Zinc/Yellow theme
+        theme_color: "#09090b",
+        background_color: "#09090b",
+        display: "standalone",
+        orientation: "portrait",
         icons: [
           {
             src: "/icons/pwa-192x192.png",

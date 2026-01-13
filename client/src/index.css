@@ -1,30 +1,80 @@
 @import "tailwindcss";
 
-/* Define variables in standard CSS block to avoid "Unknown at rule" errors */
-:root {
-  --background: #ffffff;
-  --foreground: #27272a;
-  color-scheme: light;
-}
+/* =========================================================
+   THEME VARIABLES (SINGLE SOURCE OF TRUTH)
+   ========================================================= */
 
-:root.dark {
-  --background: #09090b;
-  --foreground: #f4f4f5;
+/* ---- Dark (default) ---- */
+:root {
+  --background: #09090b;     /* page */
+  --foreground: #f4f4f5;     /* text */
+
+  --surface-1: #09090b;      /* sections */
+  --surface-2: #18181b;      /* cards */
+  --surface-3: #27272a;      /* subtle panels */
+
+  --border: #27272a;
+  --muted: #a1a1aa;
+
   color-scheme: dark;
 }
 
+/* ---- Light ---- */
+:root.light {
+  --background: #ffffff;
+  --foreground: #27272a;
+
+  --surface-1: #ffffff;
+  --surface-2: #f4f4f5;
+  --surface-3: #e5e7eb;
+
+  --border: #e5e7eb;
+  --muted: #6b7280;
+
+  color-scheme: light;
+}
+
+/* =========================================================
+   BASE STYLES
+   ========================================================= */
 @layer base {
+  html,
   body {
     background-color: var(--background);
     color: var(--foreground);
-    /* This ensures a smooth transition across the whole app */
-    transition: background-color 300ms ease, color 300ms ease;
     margin: 0;
-    font-family: system-ui, -apple-system, sans-serif;
+    padding: 0;
+    transition:
+      background-color 300ms ease,
+      color 300ms ease;
   }
 
-  /* Target all primary layout containers for transitions */
-  header, section, nav, footer, div {
-    transition: background-color 300ms ease, border-color 300ms ease, color 300ms ease;
+  #root {
+    min-height: 100vh;
+  }
+}
+
+/* =========================================================
+   OPTIONAL UTILITIES (QUALITY OF LIFE)
+   ========================================================= */
+@layer utilities {
+  .bg-surface-1 {
+    background-color: var(--surface-1);
+  }
+
+  .bg-surface-2 {
+    background-color: var(--surface-2);
+  }
+
+  .bg-surface-3 {
+    background-color: var(--surface-3);
+  }
+
+  .text-muted {
+    color: var(--muted);
+  }
+
+  .border-theme {
+    border-color: var(--border);
   }
 }
