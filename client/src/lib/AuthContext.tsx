@@ -6,15 +6,23 @@ import React, {
   useContext,
   type ReactNode,
 } from "react";
-import { createClient, type Session, type SupabaseClient } from "@supabase/supabase-js";
+import { createClient, type Session, type SupabaseClient, type User } from "@supabase/supabase-js";
 import toast from "react-hot-toast";
 
 /* ------------------------------------------------------------------ */
-/* Supabase Client */
+/* Supabase Client Configuration (Restored & Enhanced for Offline) */
 /* ------------------------------------------------------------------ */
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL as string,
-  import.meta.env.VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY as string
+  import.meta.env.VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY as string,
+  {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+      storage: window.localStorage,
+    },
+  }
 );
 
 /* ------------------------------------------------------------------ */
@@ -27,6 +35,7 @@ interface Message {
 
 interface AuthContextType {
   session: Session | null;
+  user: User | null;
   isLoading: boolean;
   loading: boolean;
   authError: string | null;
@@ -56,14 +65,13 @@ export const useAuth = (): AuthContextType => {
 };
 
 /* ------------------------------------------------------------------ */
-/* Splash Screen */
+/* Splash Screen (Restored Triple Spinners) */
 /* ------------------------------------------------------------------ */
 const SplashScreen: React.FC<{ message: string; theme: "light" | "dark" }> = ({
   message,
   theme,
 }) => {
   const isDark = theme === "dark";
-
   const bgColor = isDark ? "#09090b" : "#f9fafb";
   const textColor = isDark ? "#ffffff" : "#111827";
   const brandColor = isDark ? "#facc15" : "#ca8a04";
@@ -73,43 +81,24 @@ const SplashScreen: React.FC<{ message: string; theme: "light" | "dark" }> = ({
       style={{ backgroundColor: bgColor, color: textColor }}
       className="fixed inset-0 z-50 flex flex-col items-center justify-center transition-colors duration-500"
     >
-      {/* Spinner */}
       <div className="relative w-16 h-16 mb-6">
-        {/* Outer ring */}
-        <div className="absolute inset-0 animate-spin border-4
-                        border-t-yellow-500 border-r-yellow-500
-                        border-b-transparent border-l-transparent
-                        rounded-full opacity-70
-                        shadow-[0_0_12px_rgba(250,204,21,0.35)]" />
-
-        {/* Middle ring (reverse) */}
+        {/* Spinner 1 */}
+        <div className="absolute inset-0 animate-spin border-4 border-t-yellow-500 border-r-yellow-500 border-b-transparent border-l-transparent rounded-full opacity-70 shadow-[0_0_12px_rgba(250,204,21,0.35)]" />
+        {/* Spinner 2 */}
         <div
-          className="absolute inset-2 animate-spin border-3
-                     border-t-transparent border-r-transparent
-                     border-b-yellow-400 border-l-yellow-400
-                     rounded-full opacity-90"
+          className="absolute inset-2 animate-spin border-3 border-t-transparent border-r-transparent border-b-yellow-400 border-l-yellow-400 rounded-full opacity-90"
           style={{ animationDirection: "reverse", animationDuration: "1s" }}
         />
-
-        {/* Inner ring */}
+        {/* Spinner 3 */}
         <div
-          className="absolute inset-4 animate-spin border-2
-                     border-t-yellow-300 border-r-yellow-300
-                     border-b-transparent border-l-transparent
-                     rounded-full opacity-80"
+          className="absolute inset-4 animate-spin border-2 border-t-yellow-300 border-r-yellow-300 border-b-transparent border-l-transparent rounded-full opacity-80"
           style={{ animationDuration: "1.4s" }}
         />
       </div>
-
-      <h1
-        style={{ color: brandColor }}
-        className="text-2xl font-bold mb-1 tracking-wider uppercase text-center px-4"
-      >
+      <h1 style={{ color: brandColor }} className="text-2xl font-bold mb-1 tracking-wider uppercase text-center px-4">
         QS Pocket Knife
       </h1>
-      <p className="text-gray-500 text-xs uppercase tracking-widest">
-        {message}
-      </p>
+      <p className="text-gray-500 text-xs uppercase tracking-widest">{message}</p>
     </div>
   );
 };
@@ -121,6 +110,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   children,
 }) => {
   const [session, setSession] = useState<Session | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loading, setLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
@@ -131,19 +121,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     type: null,
   });
 
-  /* ---------------- Theme (dark-first, explicit classes) ---------------- */
   const [theme, setTheme] = useState<"light" | "dark">(() => {
     const saved = localStorage.getItem("theme");
     return saved === "light" || saved === "dark" ? saved : "dark";
   });
 
-  const toggleTheme = () => {
-    setTheme((prev) => (prev === "light" ? "dark" : "light"));
-  };
+  const toggleTheme = () => setTheme((prev) => (prev === "light" ? "dark" : "light"));
 
   useEffect(() => {
     const root = document.documentElement;
-
     if (theme === "light") {
       root.classList.add("light");
       root.classList.remove("dark");
@@ -151,13 +137,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       root.classList.add("dark");
       root.classList.remove("light");
     }
-
     localStorage.setItem("theme", theme);
   }, [theme]);
 
   /* ---------------- Auth Initialization ---------------- */
   useEffect(() => {
     const initializeAuth = async () => {
+      // Consistent with your requested branding duration
       const timer = new Promise((resolve) => setTimeout(resolve, 2200));
 
       try {
@@ -176,13 +162,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
           } else {
             window.history.replaceState({}, document.title, "/");
           }
-
           setVerifying(false);
         } else {
-          const {
-            data: { session: currentSession },
-          } = await supabase.auth.getSession();
+          // Check for existing session in localStorage
+          const { data: { session: currentSession } } = await supabase.auth.getSession();
           setSession(currentSession);
+          setUser(currentSession?.user ?? null);
         }
       } finally {
         await timer;
@@ -190,10 +175,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       }
     };
 
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, currentSession) => {
+      setSession(currentSession);
+      setUser(currentSession?.user ?? null);
+    });
+
     initializeAuth();
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
-  /* ---------------- Navigation Transitions ---------------- */
   const handleLoginTransition = async (navigate: (path: string) => void) => {
     setIsLoading(true);
     await new Promise((r) => setTimeout(r, 900));
@@ -208,7 +201,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     setIsLoading(false);
   };
 
-  /* ---------------- Auth Actions ---------------- */
   const handleLogin = async (email: string) => {
     setLoading(true);
     setAuthError(null);
@@ -226,7 +218,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       setAuthSuccess(true);
       toast.success("Check your email!");
     }
-
     setLoading(false);
   };
 
@@ -235,15 +226,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     await new Promise((r) => setTimeout(r, 800));
     await supabase.auth.signOut();
     setSession(null);
+    setUser(null);
     setIsLoading(false);
     toast.success("Logged out");
   };
 
-  /* ---------------- Render ---------------- */
   return (
     <AuthContext.Provider
       value={{
         session,
+        user,
         isLoading,
         loading,
         authError,

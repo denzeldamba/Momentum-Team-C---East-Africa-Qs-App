@@ -1,20 +1,18 @@
 import React from 'react';
 import { type Session } from "@supabase/supabase-js";
-import { LogOut, LayoutDashboard, ListPlus, Settings } from 'lucide-react';
-import { useAuth } from '../../lib/AuthContext'; // Access the authentication context/hook
-import { Button } from '../ui/button'; // Assuming Button component is in src/components/ui/
-import DashboardPage from '../../pages/DashboardPage'; // <-- IMPORT THE DASHBOARD VIEW
+import { useLocation, Link } from 'react-router-dom';
+import { LogOut, LayoutDashboard, ListPlus, Settings, Sun, Moon, Loader2 } from 'lucide-react';
+import { useAuth } from '../../lib/AuthContext';
+import { Button } from '../ui/button';
 
-// The AppShell is the main layout for authenticated users.
 interface AppShellProps {
     session: Session;
+    children: React.ReactNode; // Added children to fix ts(2322)
 }
 
-const AppShell: React.FC<AppShellProps> = ({ session }) => {
-    // Access the global logout function from the context
-    const { handleLogout } = useAuth();
-    
-    // Dev B Task: Implement App Shell, Nav, and Dashboard View
+const AppShell: React.FC<AppShellProps> = ({ session, children }) => {
+    const { handleLogout, toggleTheme, theme, isLoading } = useAuth();
+    const location = useLocation();
     
     const navItems = [
         { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard" },
@@ -22,73 +20,84 @@ const AppShell: React.FC<AppShellProps> = ({ session }) => {
         { icon: Settings, label: "Settings", href: "/settings" },
     ];
 
+    const userDisplay = session.user?.email?.split('@')[0] || "User";
+
     return (
-        <div className="flex flex-col min-h-screen bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
-            
-            {/* 1. Header/Navigation Bar */}
-            <header className="sticky top-0 z-40 w-full border-b bg-white dark:bg-gray-800 shadow-md">
+        <div className="flex flex-col min-h-screen bg-main text-theme transition-colors duration-500">
+            {/* Header */}
+            <header className="sticky top-0 z-40 w-full border-b border-theme bg-main/80 backdrop-blur-md">
                 <div className="container mx-auto flex justify-between items-center p-4">
-                    <h1 className="text-xl font-bold text-blue-600">QS Pocket Knife</h1>
-                    <div className="flex items-center space-x-4">
-                        
-                        {/* Placeholder for Sunlight Mode Toggle (Future Dev B Task) */}
-                        <Button variant="ghost" className="text-sm text-gray-600 dark:text-gray-300">
-                            ☀ Toggle Sunlight Mode
+                    <h1 className="text-xl font-black tracking-tighter bg-linear-to-r from-blue-600 to-amber-500 bg-clip-text text-transparent uppercase italic">
+                        QS POCKET KNIFE
+                    </h1>
+                    
+                    <div className="flex items-center space-x-2 sm:space-x-4">
+                        <Button 
+                            variant="ghost" 
+                            onClick={toggleTheme}
+                            className="flex items-center gap-2 text-muted hover:bg-surface rounded-full transition-all"
+                        >
+                            {theme === 'dark' ? <Sun size={18} className="text-amber-400" /> : <Moon size={18} className="text-zinc-600" />}
+                            <span className="hidden md:inline text-[10px] uppercase tracking-[0.2em] font-black">
+                                {theme === 'dark' ? 'Drafting' : 'Sunlight'}
+                            </span>
                         </Button>
                         
-                        {/* User Info */}
-                        <span className="text-sm hidden sm:inline text-gray-600 dark:text-gray-400">
-                            Welcome, {session.user.email?.split('@')[0]}
+                        <div className="h-6 w-px bg-border hidden sm:block" />
+                        <span className="text-xs hidden sm:inline text-muted font-bold uppercase tracking-wider">
+                            {userDisplay}
                         </span>
                         
-                        {/* Logout Button (Functional) */}
-                        <Button 
-                            onClick={handleLogout} 
-                            variant="destructive"
-                            className="bg-red-500 hover:bg-red-600 text-white flex items-center space-x-2"
-                        >
-                            <LogOut size={16} />
-                            <span className="hidden sm:inline">Sign Out</span>
+                        <Button onClick={handleLogout} variant="ghost" className="text-muted hover:text-red-500 transition-colors">
+                            <LogOut size={16} className="sm:mr-2" />
+                            <span className="hidden sm:inline font-bold text-xs uppercase">Sign Out</span>
                         </Button>
                     </div>
                 </div>
             </header>
 
-            {/* 2. Main Layout (Sidebar + Content) */}
             <div className="flex grow">
-                
-                {/* Sidebar - Placeholder for Project List */}
-                <aside className="w-64 bg-white dark:bg-gray-800 border-r dark:border-gray-700 p-4 hidden md:block">
+                {/* Sidebar */}
+                <aside className="w-64 bg-main border-r border-theme p-6 hidden md:block">
                     <nav className="space-y-2">
-                        {navItems.map(item => (
-                            <a 
-                                key={item.label}
-                                href={item.href}
-                                // Highlight Dashboard as the current view
-                                className={`flex items-center space-x-3 p-3 rounded-lg text-sm font-medium transition ${
-                                    item.label === 'Dashboard' 
-                                        ? 'bg-blue-500 text-white hover:bg-blue-600' 
-                                        : 'hover:bg-gray-100 dark:hover:bg-gray-700'
-                                }`}
-                            >
-                                <item.icon size={18} />
-                                <span>{item.label}</span>
-                            </a>
-                        ))}
+                        {navItems.map(item => {
+                            const isActive = location.pathname === item.href;
+                            return (
+                                <Link 
+                                    key={item.label}
+                                    to={item.href}
+                                    className={`flex items-center space-x-3 p-3 rounded-xl text-sm font-bold transition-all duration-300 ${
+                                        isActive 
+                                            ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20' 
+                                            : 'text-muted hover:bg-surface hover:text-theme'
+                                    }`}
+                                >
+                                    <item.icon size={18} />
+                                    <span>{item.label}</span>
+                                </Link>
+                            );
+                        })}
                     </nav>
-                    <p className="mt-8 text-xs text-gray-500">Dev B: UI & PWA</p>
                 </aside>
 
-                {/* Main Content Area (Dashboard View) */}
-                <main className="grow p-6 md:p-10 overflow-y-auto">
-                    {/* FIX: RENDER THE DASHBOARD PAGE COMPONENT HERE */}
-                    <DashboardPage /> 
+                {/* Main Content Area */}
+                <main className="grow p-6 md:p-10 bg-main transition-colors duration-500">
+                    <div className="max-w-6xl mx-auto">
+                        {isLoading ? (
+                            <div className="flex flex-col items-center justify-center min-h-[40vh] gap-4">
+                                <Loader2 className="w-8 h-8 text-amber-500 animate-spin" />
+                                <p className="text-amber-500 font-black uppercase tracking-widest text-[10px]">Synchronizing Local Vault...</p>
+                            </div>
+                        ) : (
+                            /* Render the current page (children) instead of a hardcoded Dashboard */
+                            children 
+                        )}
+                    </div>
                 </main>
             </div>
 
-            {/* 3. Footer */}
-            <footer className="w-full p-3 text-center text-xs text-gray-500 border-t dark:border-gray-700 bg-white dark:bg-gray-800">
-                &copy; Momentum Labs QS MVP | Platform: Offline-First PWA
+            <footer className="w-full p-4 text-center text-[9px] uppercase tracking-[0.3em] text-muted border-t border-theme bg-main">
+                &copy; 2026 Momentum Labs QS MVP | Offline-First Architecture
             </footer>
         </div>
     );

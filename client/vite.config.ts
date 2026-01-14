@@ -10,24 +10,44 @@ export default defineConfig({
     VitePWA({
       registerType: "autoUpdate",
       devOptions: {
-        enabled: true, // Allows you to test PWA features during 'npm run dev'
+        enabled: true, 
       },
       workbox: {
-        // Includes all built assets in the offline cache
+        // Includes all built assets (JS, CSS, HTML) in the offline cache
         globPatterns: ["**/*.{js,css,html,ico,png,svg}"],
+        
         runtimeCaching: [
           {
-            // PRO FIX: Match any request to your own domain without using 'self'
-            urlPattern: ({ url }) => url.origin === url.origin,
-            handler: "NetworkFirst", // Tries internet first, falls back to cache for site measurements
+            /**
+             * 1. SUPABASE AUTH CACHE
+             * This allows the app to "remember" the session offline.
+             */
+            urlPattern: /^https:\/\/.*\.supabase\.co\/auth\/v1\/.*/,
+            handler: "NetworkFirst",
             options: {
-              cacheName: "qs-app-runtime-cache",
+              cacheName: "supabase-auth-cache",
               expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 60 * 60 * 24 * 365, // 1 year
+                maxEntries: 10,
+                maxAgeSeconds: 60 * 60 * 24 * 30, // 30 days
               },
               cacheableResponse: {
                 statuses: [0, 200],
+              },
+            },
+          },
+          {
+            /**
+             * 2. ASSETS & NAVIGATION CACHE
+             * Using a simpler regex that matches local paths to avoid
+             * 'window' or 'self' reference errors.
+             */
+            urlPattern: /\.(?:js|css|html|png|jpg|jpeg|svg|gif)$/,
+            handler: "StaleWhileRevalidate",
+            options: {
+              cacheName: "qs-static-assets",
+              expiration: {
+                maxEntries: 60,
+                maxAgeSeconds: 60 * 60 * 24 * 30,
               },
             },
           },
@@ -37,7 +57,6 @@ export default defineConfig({
         name: "East African QS Pocket Knife",
         short_name: "QS App",
         description: "Offline-First Quantity Surveying App for East Africa",
-        // Updated colors to match your professional Zinc/Yellow theme
         theme_color: "#09090b",
         background_color: "#09090b",
         display: "standalone",
