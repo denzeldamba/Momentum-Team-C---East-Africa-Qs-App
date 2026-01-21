@@ -8,6 +8,7 @@ export async function syncPending(userId: string) {
   isSyncing = true;
 
   try {
+    // Get pending jobs sorted by creation time
     const queue = await db.pendingSync
       .where("status")
       .equals("pending")
@@ -17,9 +18,9 @@ export async function syncPending(userId: string) {
       try {
         const { id, table, entity_id, payload, operation } = job;
 
-        /* -------------------------------------------
-           FETCH SERVER VERSION (IF EXISTS)
-           ------------------------------------------- */
+        // --------------------------
+        // FETCH SERVER VERSION (IF EXISTS)
+        // --------------------------
         const { data: serverRecord, error: fetchError } =
           await supabase
             .from(table)
@@ -29,37 +30,30 @@ export async function syncPending(userId: string) {
 
         if (fetchError) throw fetchError;
 
-        const localUpdatedAt = payload.updated_at;
+        // Convert payload.updated_at to milliseconds
+        const localUpdatedAt = new Date(payload.updated_at).getTime();
         const serverUpdatedAt = serverRecord?.updated_at
           ? new Date(serverRecord.updated_at).getTime()
           : null;
 
-        /* -------------------------------------------
-           LAST-WRITE-WINS DECISION
-           ------------------------------------------- */
-
-        // Server newer → discard local change
-        if (
-          serverUpdatedAt !== null &&
-          serverUpdatedAt > localUpdatedAt
-        ) {
-          await db.pendingSync.update(id!, {
-            status: "synced",
-          });
-
-          continue;
+        // --------------------------
+        // LAST-WRITE-WINS LOGIC
+        // --------------------------
+        if (serverUpdatedAt !== null && serverUpdatedAt > localUpdatedAt) {
+          await db.pendingSync.update(id!, { status: "synced" });
+          continue; // Server is newer → skip local change
         }
 
-        /* -------------------------------------------
-           APPLY LOCAL CHANGE
-           ------------------------------------------- */
-
+        // --------------------------
+        // APPLY LOCAL CHANGE
+        // --------------------------
         if (operation === "insert" || operation === "update") {
           const { error } = await supabase
             .from(table)
             .upsert(
               {
                 ...payload,
+                updated_at: new Date(payload.updated_at).toISOString(), // ✅ Convert to ISO string
                 created_by: userId,
               },
               { onConflict: "id" }
@@ -77,15 +71,13 @@ export async function syncPending(userId: string) {
           if (error) throw error;
         }
 
-        await db.pendingSync.update(id!, {
-          status: "synced",
-        });
+        // Mark job as synced
+        await db.pendingSync.update(id!, { status: "synced" });
       } catch (jobError) {
         console.error("Conflict sync failed:", jobError);
 
-        await db.pendingSync.update(job.id!, {
-          status: "failed",
-        });
+        // Mark job as failed for retry
+        await db.pendingSync.update(job.id!, { status: "failed" });
       }
     }
   } finally {
