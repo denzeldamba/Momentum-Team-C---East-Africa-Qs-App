@@ -1,35 +1,51 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import { useEffect } from "react";
+import { createProject } from "./db/repositories/projectsrepo";
+import { useProjects } from "./hooks/UseProjects";
+import { useNetworkStatus } from "./hooks/useNetworkStatus";
+import { syncPending } from "./sync/SyncEngine";
+import { supabase } from "./lib/Supabase";
 
-function App() {
-  const [count, setCount] = useState(0)
+export default function App() {
+  const { data: projects } = useProjects();
+  const online = useNetworkStatus();
+
+  useEffect(() => {
+    if (!online) return;
+
+    supabase.auth.getUser().then(({ data }) => {
+      if (data.user) {
+        syncPending(data.user.id);
+      }
+    });
+  }, [online]); // 🔑 sync whenever network comes back
 
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
-}
+    <div style={{ padding: 20 }}>
+      <h2>Offline Test</h2>
+      <p>Status: {online ? "🟢 Online" : "🔴 Offline"}</p>
 
-export default App
+      <button
+        onClick={async () => {
+          await createProject({
+            id: crypto.randomUUID(),
+            name: "Test Project",
+            client: "Test Client",
+            updated_at: Date.now(),
+          });
+          alert("Project saved OFFLINE");
+        }}
+      >
+        Create Project
+      </button>
+
+      <h3>Saved Projects</h3>
+      <ul>
+        {projects?.map((p) => (
+          <li key={p.id}>
+            {p.name} — {p.client}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
