@@ -1,170 +1,116 @@
-import { AuthError } from "@supabase/supabase-js";
-import { useEffect, useState, type FormEvent } from "react";
-import toast from "react-hot-toast";
-import { supabase } from "./supabase/client";
+// import { useState, useEffect } from 'react';
+// import type { FormEvent } from 'react';
+// import type { Session } from "@supabase/supabase-js";
+// import { createClient } from "@supabase/supabase-js";
 
-export default function Auth() {
-	const [loading, setLoading] = useState(false);
-	const [email, setEmail] = useState("");
-	const [session, setSession] = useState<Session | null>(null);
+// // 1. Initialize the Supabase client (Removed 'export' to fix Fast Refresh error)
+// const supabase = createClient(
+//     import.meta.env.VITE_SUPABASE_URL as string,
+//     import.meta.env.VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY as string
+// );
 
-	const params = new URLSearchParams(window.location.search);
-	const hasTokenHash = params.get("token_hash");
+// // 2. The Auth Component logic
+// export default function Auth() {
+//     const [loading, setLoading] = useState(false);
+//     const [email, setEmail] = useState("");
+//     const [session, setSession] = useState<Session | null>(null);
 
-	const [verifying, setVerifying] = useState(!!hasTokenHash);
-	const [authError, setAuthError] = useState<string | null>(null);
-	const [authSuccess, setAuthSuccess] = useState(false);
+//     const params = new URLSearchParams(window.location.search);
+//     const hasTokenHash = params.get("token_hash");
 
-	useEffect(() => {
-		const params = new URLSearchParams(window.location.search);
-		const token_hash = params.get("token_hash");
-		const type = params.get("type");
+//     const [verifying, setVerifying] = useState(!!hasTokenHash);
+//     const [authError, setAuthError] = useState<string | null>(null);
+    
+//     // FIXED: Added 'authSuccess' back to the array so setAuthSuccess is the function
+//     const [authSuccess, setAuthSuccess] = useState(false);
 
-		if (token_hash) {
-			supabase.auth
-				.verifyOtp({
-					token_hash,
-					type: (type as "email" | "sms") || "email",
-				})
-				.then(({ error }: { error: AuthError | null }) => {
-					if (error) setAuthError(error.message);
-					else {
-						setAuthSuccess(true);
-						window.history.replaceState({}, document.title, "/");
-					}
-					setVerifying(false);
-				});
-		}
+//     useEffect(() => {
+//         const params = new URLSearchParams(window.location.search);
+//         const token_hash = params.get("token_hash");
+//         const type = params.get("type");
 
-		supabase.auth
-			.getSession()
-			.then(({ data: { session } }) => setSession(session));
+//         if (token_hash) {
+//             supabase.auth
+//                 .verifyOtp({
+//                     token_hash,
+//                     type: (type as "email" | "magiclink") || "email",
+//                 })
+//                 .then(({ error }) => {
+//                     if (error) {
+//                         setAuthError(error.message);
+//                     } else {
+//                         setAuthSuccess(true);
+//                         window.history.replaceState({}, document.title, "/");
+//                     }
+//                     setVerifying(false);
+//                 });
+//         }
 
-		const {
-			data: { subscription },
-		} = supabase.auth.onAuthStateChange((_event, session) => {
-			setSession(session);
-		});
+//         supabase.auth
+//             .getSession()
+//             .then(({ data: { session } }) => setSession(session));
 
-		return () => subscription.unsubscribe();
-	}, []);
+//         const {
+//             data: { subscription },
+//         } = supabase.auth.onAuthStateChange((_event, session) => {
+//             setSession(session);
+//         });
 
-	const handleLogin = async (event: FormEvent) => {
-		event.preventDefault();
-		setLoading(true);
-		const { error } = await supabase.auth.signInWithOtp({
-			email,
-			options: { emailRedirectTo: window.location.origin },
-		});
+//         return () => subscription.unsubscribe();
+//     }, []); // Removed setAuthSuccess from dependency to keep it clean
 
-		if (error) alert(error.error_description || error.message);
-		else toast.success("Check thy email for the login link!");
+//     const handleLogin = async (event: FormEvent) => {
+//         event.preventDefault();
+//         setLoading(true);
+//         const { error } = await supabase.auth.signInWithOtp({
+//             email,
+//             options: { emailRedirectTo: window.location.origin },
+//         });
 
-		setLoading(false);
-	};
+//         if (error) alert(error.message);
+//         else alert("Check your email for the login link!");
 
-	const handleLogout = async () => {
-		await supabase.auth.signOut();
-		setSession(null);
-	};
+//         setLoading(false);
+//     };
 
-	const baseContainer =
-		"flex flex-col items-center justify-center min-h-screen bg-gray-50 px-4";
+//     const handleLogout = async () => {
+//         await supabase.auth.signOut();
+//         setSession(null);
+//     };
 
-	// Verification state
-	if (verifying) {
-		return (
-			<div className={baseContainer}>
-				<h1 className="text-3xl font-bold mb-4">Authentication</h1>
-				<p className="text-gray-700 mb-2">
-					Confirming your magic link...
-				</p>
-				<p className="text-blue-500 font-semibold">Loading...</p>
-			</div>
-		);
-	}
+//     const baseContainer = "flex flex-col items-center justify-center min-h-screen bg-gray-50 px-4";
 
-	// Error state
-	if (authError) {
-		return (
-			<div className={baseContainer}>
-				<h1 className="text-3xl font-bold mb-4">Authentication</h1>
-				<p className="text-red-600 font-semibold mb-2">
-					✗ Authentication failed
-				</p>
-				<p className="text-gray-700 mb-4">{authError}</p>
-				<button
-					className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition"
-					onClick={() => {
-						setAuthError(null);
-						window.history.replaceState({}, document.title, "/");
-					}}>
-					Return to login
-				</button>
-			</div>
-		);
-	}
+//     if (verifying) return <div className={baseContainer}><h1>Confirming...</h1></div>;
+    
+//     if (authError) return <div className={baseContainer}><h1>Error</h1><p>{authError}</p></div>;
 
-	// Success state (before session loads)
-	if (authSuccess && !session) {
-		return (
-			<div className={baseContainer}>
-				<h1 className="text-3xl font-bold mb-4">Authentication</h1>
-				<p className="text-green-600 font-semibold mb-2">
-					✓ Authentication successful!
-				</p>
-				<p className="text-gray-700">Loading your account...</p>
-			</div>
-		);
-	}
+//     if (session) {
+//         return (
+//             <div className={baseContainer}>
+//                 <h1 className="text-3xl font-bold mb-4 text-black">Welcome!</h1>
+//                 <p className="mb-4 text-black">Logged in as: {session.user.email}</p>
+//                 <button className="bg-red-600 text-white px-4 py-2 rounded font-bold" onClick={handleLogout}>Sign Out</button>
+//             </div>
+//         );
+//     }
 
-	// Logged in
-	if (session) {
-		return (
-			<div className={baseContainer}>
-				<h1 className="text-3xl font-bold mb-4">Welcome!</h1>
-				<p className="text-gray-800 mb-4">
-					Your are logged in as:{" "}
-					<span className="font-mono">{session.user.email}</span>
-				</p>
-				<button
-					className="px-6 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition"
-					onClick={handleLogout}>
-					Sign Out
-				</button>
-			</div>
-		);
-	}
-
-	// Login form
-	return (
-		<div className={baseContainer}>
-			<h1 className="text-3xl text-gray-500 font-bold mb-4">
-				Quantity Surveying App
-			</h1>
-			<p className="text-gray-700 mb-6 text-center">
-				Sign in via magic link with your email below
-			</p>
-
-			<form
-				onSubmit={handleLogin}
-				className="w-full max-w-sm bg-white p-6 rounded shadow-md space-y-4">
-				<input
-					type="email"
-					placeholder="Your email"
-					value={email}
-					required
-					onChange={(e) => setEmail(e.target.value)}
-					className="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-				/>
-
-				<button
-					type="submit"
-					disabled={loading}
-					className="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed">
-					{loading ? "Loading..." : "Send magic link"}
-				</button>
-			</form>
-		</div>
-	);
-}
+//     return (
+//         <div className={baseContainer}>
+//             <h1 className="text-3xl font-bold mb-4 text-black">EA Quantity Surveyor</h1>
+//             <form onSubmit={handleLogin} className="bg-white p-6 rounded shadow-md w-full max-w-sm border-2 border-black">
+//                 <input
+//                     type="email"
+//                     placeholder="Your email"
+//                     value={email}
+//                     onChange={(e) => setEmail(e.target.value)}
+//                     className="w-full p-2 border-2 border-gray-300 mb-4 rounded text-black"
+//                     required
+//                 />
+//                 <button type="submit" disabled={loading} className="w-full bg-blue-600 text-white p-2 rounded font-bold hover:bg-blue-700">
+//                     {loading ? "Loading..." : "Send magic link"}
+//                 </button>
+//             </form>
+//             {authSuccess && <p className="mt-4 text-green-600 font-bold">Login Successful!</p>}
+//         </div>
+//     );
+// }

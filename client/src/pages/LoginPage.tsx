@@ -1,9 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../lib/AuthContext';
 import { Button } from '../Components/ui/button';
 import { useNavigate } from 'react-router-dom'; 
 import { Mail, CheckCircle, X } from 'lucide-react';
 
+/* ------------------------------------------------------------------ */
+/* Sub-Component: AuthMessage */
+/* ------------------------------------------------------------------ */
 interface AuthMessageProps {
     message: string | null;
     type: 'success' | 'error' | null;
@@ -12,23 +15,37 @@ interface AuthMessageProps {
 const AuthMessage: React.FC<AuthMessageProps> = ({ message, type }) => {
     if (!message) return null;
     const isSuccess = type === 'success';
-    const baseClass = "p-4 rounded-xl text-sm font-medium flex items-center space-x-3 shadow-lg";
+    const baseClass = "p-4 rounded-xl text-sm font-bold flex items-center space-x-3 shadow-lg border animate-in fade-in zoom-in duration-300";
     const msgClass = isSuccess
-        ? "bg-green-700 text-white dark:bg-green-800"
-        : "bg-red-700 text-white dark:bg-red-800";
+        ? "bg-green-500/10 text-green-500 border-green-500/20"
+        : "bg-red-500/10 text-red-500 border-red-500/20";
 
     return (
         <div className={`${baseClass} ${msgClass}`}>
-            {isSuccess ? <CheckCircle size={20} /> : <X size={20} />}
+            {isSuccess ? <CheckCircle size={18} className="shrink-0" /> : <X size={18} className="shrink-0" />}
             <span>{message}</span>
         </div>
     );
 };
 
+/* ------------------------------------------------------------------ */
+/* Main Page: LoginPage */
+/* ------------------------------------------------------------------ */
 const LoginPage: React.FC = () => {
-    const { handleLogin, loading, authError, authSuccess, handleBackTransition } = useAuth();
+    const { handleLogin, loading, authError, authSuccess, handleBackTransition, session } = useAuth();
     const [email, setEmail] = useState('');
     const navigate = useNavigate();
+
+    /**
+     * LOG IN ONCE LOGIC:
+     * If a session exists (even if loaded from offline cache), 
+     * push the user straight to the dashboard.
+     */
+    useEffect(() => {
+        if (session) {
+            navigate('/dashboard');
+        }
+    }, [session, navigate]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -49,59 +66,63 @@ const LoginPage: React.FC = () => {
     }
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-black p-4">
-            <div className="w-full max-w-md bg-gray-900 p-8 rounded-xl shadow-[0_0_40px_rgba(255,193,7,0.3)] space-y-6 border border-gray-700">
-                <div className="text-center">
-                    <h2 className="text-3xl font-extrabold text-yellow-400">QS Pocket Knife</h2>
-                    <p className="mt-2 text-sm text-gray-400">
-                        Sign in for secure, **Offline-First** access to your projects.
+        <div className="min-h-screen flex items-center justify-center bg-[#09090b] p-4 font-sans">
+            <div className="w-full max-w-md bg-zinc-900/40 p-10 rounded-[2.5rem] shadow-[0_0_60px_rgba(245,158,11,0.1)] space-y-8 border border-zinc-800/50 backdrop-blur-xl">
+                
+                <div className="text-center space-y-2">
+                    <h2 className="text-4xl font-black text-amber-500 tracking-tighter uppercase italic leading-none">
+                        QS Pocket Knife
+                    </h2>
+                    <p className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em]">
+                        Precision Takeoff <span className="text-zinc-700">•</span> Offline Vault
                     </p>
                 </div>
 
                 <AuthMessage message={statusMessage} type={statusType} />
 
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <div className="relative">
-                        <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-1">
-                            Email Address (Magic Link Login)
+                <form onSubmit={handleSubmit} className="space-y-6">
+                    <div className="space-y-2">
+                        <label htmlFor="email" className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest ml-1">
+                            Auth Identifier (Email)
                         </label>
-                        <Mail size={18} className="absolute left-3 top-9 text-gray-500" />
-                        <input
-                            id="email"
-                            name="email"
-                            type="email"
-                            autoComplete="email"
-                            required
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            // ADDED PLACEHOLDER BELOW
-                            placeholder="example@gmail.com"
-                            className="mt-1 block w-full pl-10 pr-3 py-3 border border-gray-600 rounded-lg shadow-sm focus:ring-amber-500 focus:border-amber-500 bg-gray-800 text-white placeholder-gray-500 outline-none transition-all"
-                        />
+                        <div className="relative group">
+                            <Mail size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600 group-focus-within:text-amber-500 transition-colors" />
+                            <input
+                                id="email"
+                                type="email"
+                                required
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                placeholder="surveyor@company.com"
+                                className="w-full pl-12 pr-4 py-4 bg-zinc-950 border border-zinc-800 rounded-2xl text-sm font-bold text-white placeholder-zinc-800 outline-none focus:ring-2 ring-amber-500/30 focus:border-amber-500/50 transition-all"
+                            />
+                        </div>
                     </div>
 
                     <Button
                         type="submit"
-                        disabled={loading}
-                        className="w-full bg-amber-500 hover:bg-yellow-400 text-gray-900 font-bold py-3 shadow-xl transition transform hover:scale-[1.01] flex items-center justify-center space-x-2"
+                        disabled={loading || authSuccess}
+                        className="w-full bg-amber-500 hover:bg-amber-400 text-black font-black py-7 rounded-2xl shadow-xl shadow-amber-500/5 transition-all active:scale-[0.98] flex items-center justify-center space-x-2 uppercase text-[11px] tracking-[0.2em]"
                     >
                         {loading ? (
-                            <span className="flex items-center space-x-2">
-                                <span className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-gray-900"></span>
-                                <span>Sending Link...</span>
-                            </span>
+                             <div className="flex items-center gap-3">
+                                <div className="animate-spin rounded-full h-4 w-4 border-2 border-black border-t-transparent"></div>
+                                <span>Verifying...</span>
+                             </div>
+                        ) : authSuccess ? (
+                            'Link Transmitted'
                         ) : (
-                            'Send Secure Magic Link'
+                            'Authorize Session'
                         )}
                     </Button>
                 </form>
 
-                <div className="text-center text-sm text-gray-500">
+                <div className="pt-4 text-center">
                     <button 
                         onClick={() => handleBackTransition(navigate)}
-                        className="font-medium text-blue-400 hover:text-amber-500 transition bg-transparent border-none cursor-pointer"
+                        className="text-[10px] font-black uppercase tracking-widest text-zinc-600 hover:text-amber-500 transition-all bg-transparent border-none cursor-pointer"
                     >
-                        ← Back to App Description
+                        ← Return to Overview
                     </button>
                 </div>
             </div>

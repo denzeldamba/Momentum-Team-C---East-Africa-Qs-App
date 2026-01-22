@@ -67,7 +67,7 @@ if (!self.define) {
     });
   };
 }
-define(['./workbox-c5fd805d'], (function (workbox) { 'use strict';
+define(['./workbox-8c83623c'], (function (workbox) { 'use strict';
 
   self.skipWaiting();
   workbox.clientsClaim();
@@ -82,19 +82,27 @@ define(['./workbox-c5fd805d'], (function (workbox) { 'use strict';
     "revision": "3ca0b8505b4bec776b69afdba2768812"
   }, {
     "url": "index.html",
-    "revision": "0.io0abk59318"
+    "revision": "0.a5hreunm0no"
   }], {});
   workbox.cleanupOutdatedCaches();
   workbox.registerRoute(new workbox.NavigationRoute(workbox.createHandlerBoundToURL("index.html"), {
     allowlist: [/^\/$/]
   }));
-  workbox.registerRoute(({
-    url
-  }) => url.origin === self.location.origin, new workbox.NetworkFirst({
-    "cacheName": "qs-app-runtime-cache",
+  workbox.registerRoute(/^https:\/\/.*\.supabase\.co\/auth\/v1\/.*/, new workbox.NetworkFirst({
+    "cacheName": "supabase-auth-cache",
     plugins: [new workbox.ExpirationPlugin({
       maxEntries: 10,
-      maxAgeSeconds: 31536000
+      maxAgeSeconds: 2592000
+    }), new workbox.CacheableResponsePlugin({
+      statuses: [0, 200]
+    })]
+  }), 'GET');
+  workbox.registerRoute(({
+    url
+  }) => url.origin === self.location.origin, new workbox.StaleWhileRevalidate({
+    "cacheName": "qs-app-assets",
+    plugins: [new workbox.ExpirationPlugin({
+      maxEntries: 50
     })]
   }), 'GET');
 
