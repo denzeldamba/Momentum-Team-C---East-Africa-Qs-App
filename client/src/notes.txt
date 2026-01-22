@@ -5,7 +5,7 @@ PROJECT: QS POCKET KNIFE - ARCHITECTURE OVERVIEW
 1. THE "APP ENTRY" PHILOSOPHY
 -----------------------------
 QS Pocket Knife is designed for a "Premium Tool" feel. The application 
-uses a "Black & Green" high-contrast theme. To prevent a "white flash" 
+uses a high-contrast theme (Black & Amber/Green). To prevent a "white flash" 
 or unstyled content (FOUC) during load, we control the entire entry 
 sequence through the AuthContext.
 
@@ -14,13 +14,15 @@ sequence through the AuthContext.
 
 A. src/lib/AuthContext.tsx (The Brain)
    - ROLE: The gatekeeper of the application.
+   - THEME: Manages 'dark' vs 'light' mode persistence in localStorage and 
+     applies the '.dark' class to the document root.
    - PROCESS: 
      1. On startup, it triggers a mandatory 3-second 'SplashScreen'.
      2. It checks Supabase for an active user session or a Magic Link token.
      3. It provides 'session', 'isLoading', and 'handleLogin/Logout' to 
         the rest of the app via the 'useAuth' hook.
    - NOTE: We use a 3000ms timer here to ensure the branding (spinning 
-     green loader) is established before the UI reveals itself.
+     loader) is established before the UI reveals itself.
 
 B. src/App.tsx (The Router)
    - ROLE: Decision Maker.
@@ -32,8 +34,8 @@ B. src/App.tsx (The Router)
 
 C. src/pages/MarketingPage.tsx (The Front Door)
    - ROLE: User Acquisition.
-   - UI: Features high-quality imagery of people using tech, blended 
-     into a black background using CSS overlays. 
+   - UI: Features high-quality imagery blended into a black background using 
+     CSS overlays. 
    - ACTION: Contains links to the /login route.
 
 D. src/pages/LoginPage.tsx (The Keyhole)
@@ -41,8 +43,12 @@ D. src/pages/LoginPage.tsx (The Keyhole)
    - PROCESS: Sends a request to Supabase Auth. The user is redirected back 
      to the app, where AuthContext picks up the token and logs them in.
 
-3. KEY TECHNICAL FIXES (DEC 2025)
----------------------------------
+3. KEY TECHNICAL FIXES (DEC 2025 / JAN 2026)
+--------------------------------------------
+
+- THEME VISIBILITY: Updated Tailwind classes to ensure zinc-400/500 text 
+  is shifted to higher contrast (zinc-600/700 or zinc-200/300) depending 
+  on the active theme.
 
 - CASCADING RENDERS: Fixed a bug where state updates during initialization 
   caused infinite loops. Loading state is now initialized based on URL 
@@ -51,7 +57,7 @@ D. src/pages/LoginPage.tsx (The Keyhole)
 - VITE FAST REFRESH: Added 'eslint-disable' for React Refresh to allow 
   exporting both the Provider and the Hook from the same file.
 
-- CSS ANIMATIONS: The green spinners in the SplashScreen are pure CSS 
+- CSS ANIMATIONS: The green/amber spinners in the SplashScreen are pure CSS 
   keyframes injected via a <style> tag to ensure they work even before 
   external stylesheets are fully parsed.
 
@@ -64,3 +70,139 @@ it is automatically protected.
 ================================================
 "Sharp tools for sharp minds."
 ================================================
+
+USER SCHEMA SUMMARY (Supabase)
+
+Auth vs Profile
+---------------
+- Authentication is handled by Supabase `auth.users`
+- Do NOT modify `auth.users`
+- Application-specific user data lives in a separate `profiles` table
+- `profiles.id` = `auth.users.id` (1–1 relationship)
+
+Why a Profiles Table?
+---------------------
+The app requires more than identity:
+- Professional QS context
+- Regional & financial defaults
+- Offline-first preferences
+- UI personalization
+
+Required User Data
+------------------
+Identity:
+- id (UUID, FK → auth.users)
+- email
+- full_name
+- display_name
+- avatar_url (optional)
+
+Professional Context:
+- profession (default: quantity_surveyor)
+- organization_name
+- registration_number (BORAQS / RICS etc.)
+
+Regional & Financial Defaults:
+- country (default: Kenya)
+- region (default: Nairobi)
+- currency (default: KES)
+- timezone (default: Africa/Nairobi)
+
+Application Preferences:
+- theme_preference (light | dark | system)
+- default_unit_system (metric | imperial)
+- offline_enabled (boolean)
+
+Activity & Sync:
+- last_active_at
+- last_sync_at
+
+Security Model
+--------------
+- Row Level Security enabled on profiles
+- Users can SELECT and UPDATE only their own profile
+- All domain tables reference `auth.users.id` directly
+- Profile data is joined only when needed
+
+Profile Auto-Creation
+---------------------
+- A database trigger creates a profile automatically
+- Trigger runs on `auth.users` INSERT
+- Ensures every authenticated user has a profile row
+
+Design Principles
+-----------------
+- Auth remains clean and managed by Supabase
+- Profile contains domain-specific data only
+- Offline-first and regional behavior is user-scoped
+- Schema is minimal, extensible, and production-ready
+
+One-Line Description
+--------------------
+Users are authenticated via Supabase Auth and extended through a secure profile layer that stores professional, regional, and offline-first preferences required for QS workflows.
+
+Project Status: Foundation & Auth Core Complete (January 2026) Primary Goal: "Verify Once" - Authenticate via cloud, then operate indefinitely on construction sites without internet.
+
+1. Authentication Strategy: "Verify Once"
+Provider: Supabase Auth (Magic Link).
+
+Persistence: Configured persistSession: true using localStorage.
+
+Offline Access: * The AuthContext initializes by checking local storage before attempting any network requests.
+
+Once a user clicks the Magic Link, the session is "anchored" to the browser.
+
+As long as the refresh_token exists in Local Storage, the user skips the login screen on every subsequent visit, even if completely offline.
+
+2. Offline-First Database (Dexie.js + IndexedDB)
+Engine: Dexie.js (Wrapper for browser IndexedDB).
+
+Logic: All data (Projects, Drawings, Measurements) is written to the local database first.
+
+Security: Every record is stamped with a user_id. Queries are strictly filtered by this ID to ensure data privacy between different users on the same device.
+
+Tables Implemented:
+
+projects: Stores entity names, client details, and locations.
+
+drawings: (Ready for implementation) Designed to store PDF files as binary Blobs.
+
+3. PWA Configuration (Vite-PWA)
+Service Worker: Uses Workbox for aggressive caching.
+
+Caching Strategy:
+
+Static Assets: StaleWhileRevalidate (Loads UI instantly from cache, updates in background).
+
+Auth Requests: NetworkFirst with a 30-day fallback. This caches the Supabase login response, allowing the "handshake" to succeed even in zero-signal areas.
+
+Manifest: Configured for standalone "App-like" experience on Android/iOS (No browser URL bar).
+
+4. UI & Layout Architecture
+Theme: Dual-mode system ("Drafting" Dark Mode / "Sunlight" Light Mode) optimized for outdoor site visibility.
+
+AppShell: A persistent wrapper that handles navigation and theme switching while protecting internal routes.
+
+Dashboard: A high-density data table for project management with real-time network status indicators (Wifi/WifiOff icons).
+
+Tech Stack: React 19, TypeScript, Tailwind CSS (v4), Lucide Icons, TanStack Query.
+
+5. Implementation Timeline (Completed)
+[x] Vite & Tailwind v4 Setup: Optimized build pipeline.
+
+[x] Supabase Integration: Client-side auth with persistence.
+
+[x] Dexie Repository Pattern: Abstracted database logic for projects.
+
+[x] PWA Service Worker: Offline asset and auth caching.
+
+[x] Dashboard UI: Project creation and management with full TS safety.
+
+[x] Protected Routing: Gatekeeper logic to prevent unauthorized access.
+
+6. Pending Actions (Next Steps)
+Drawing Management: PDF upload service (File -> Blob -> Dexie).
+
+Takeoff Engine: Canvas-based measurement tools for area and linear takeoff.
+
+Sync Engine: Logic to push local Dexie changes to Supabase when a connection is detected.

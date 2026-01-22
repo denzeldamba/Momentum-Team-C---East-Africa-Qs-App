@@ -1,90 +1,194 @@
-import React from 'react';
-import { Plus } from 'lucide-react';
-// FIX: Correcting path casing to use 'components' for cross-platform stability
-import { Button } from '../Components/ui/button';
-
-// Mock Data for demonstration purposes
-const mockProjects = [
-  { id: 1, name: "Nairobi Expressway Phase 3", location: "Nairobi County", status: "Ongoing", lastUpdated: "5 mins ago" },
-  { id: 2, name: "Kisumu Port Reconstruction", location: "Kisumu County", status: "Draft", lastUpdated: "1 day ago" },
-  { id: 3, name: "Affordable Housing Project (Unit C)", location: "Mombasa County", status: "Completed", lastUpdated: "1 week ago" },
-  { id: 4, name: "Thika Road Underpass Survey", location: "Kiambu County", status: "Archived", lastUpdated: "2 months ago" },
-];
+import React, { useState } from "react";
+import {
+  Plus,
+  Wifi,
+  WifiOff,
+  Trash2,
+  ExternalLink,
+  MapPin,
+  Loader2,
+  Check,
+  X,
+  Calendar
+} from "lucide-react";
+import { Button } from "../Components/ui/button";
+import { useProjects } from "../hooks/UseProjects";
+import { useNetworkStatus } from "../hooks/useNetworkStatus";
+import { createProject, deleteProject } from "../db/repositories/projectsrepo";
+import { useAuth } from "../lib/AuthContext";
+import type { Project } from "../db/OfflineDb";
+import toast from "react-hot-toast";
+import { useQueryClient } from "@tanstack/react-query";
 
 const DashboardPage: React.FC = () => {
-  return (
-    <div className="space-y-8">
-      {/* Dashboard Header */}
-      <div className="flex justify-between items-center pb-4 border-b border-gray-700">
-        <h2 className="text-3xl font-bold text-gray-100">Project Dashboard</h2>
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const { data: projects, isLoading } = useProjects();
+  const isOnline = useNetworkStatus();
 
-        <Button
-          // FIX 1: Removed alert()
-          onClick={() => console.log("ACTION: Simulating Project Creation...")}
-          // FIX 2: Using a strong, professional green accent for the primary action button
-          className="flex items-center space-x-2 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition"
-        >
-          <Plus size={20} />
-          <span>New Project</span>
-        </Button>
+  const [isCreating, setIsCreating] = useState(false);
+  const [newProject, setNewProject] = useState({ name: "", client_name: "", location: "" });
+
+  // Mapping for professional placeholders
+  const placeholders: Record<string, string> = {
+    name: "e.g., Two Rivers Mall",
+    client_name: "e.g., Centum Real Estate",
+    location: "e.g., Limuru Road, Nairobi"
+  };
+
+  const handleCreateNewProject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    // Use user.id here to ensure we have the auth context
+    if (!user?.id || !newProject.name || !newProject.client_name) {
+      toast.error("Name and Client are required");
+      return;
+    }
+
+    const toastId = toast.loading("Initializing project...");
+
+    try {
+      await createProject({
+        id: crypto.randomUUID(),
+        user_id: user.id, // ADDED THIS LINE to fix the TS error
+        name: newProject.name,
+        client_name: newProject.client_name,
+        location: newProject.location,
+        status: 'active',
+        updated_at: Date.now(),
+      }, user.id);
+
+      await queryClient.invalidateQueries({ queryKey: ["projects", user.id] });
+
+      toast.success("Project saved to local vault", { id: toastId });
+      setNewProject({ name: "", client_name: "", location: "" });
+      setIsCreating(false);
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to save locally", { id: toastId });
+    }
+  };
+
+  const handleDelete = async (id: string, name: string) => {
+    if (!user?.id) return;
+
+    if (window.confirm(`Permanently delete "${name}"?`)) {
+      try {
+        // Updated to include user.id as required by the repository
+        await deleteProject(id, user.id);
+        await queryClient.invalidateQueries({ queryKey: ["projects", user.id] });
+        toast.success("Record purged");
+      } catch {
+        toast.error("Delete failed");
+      }
+    }
+  };
+
+  if (isLoading) return (
+    <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+      <Loader2 className="w-10 h-10 text-amber-500 animate-spin" />
+      <div className="text-center font-black text-amber-500 uppercase tracking-widest text-xs animate-pulse">
+        Synchronizing Local Database...
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="space-y-8 min-h-full pb-20 animate-in fade-in duration-500">
+      {/* Header Section */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-6 border-b border-theme">
+        <div className="space-y-1">
+          <h2 className="text-5xl font-black tracking-tighter text-theme uppercase italic">Dashboard</h2>
+          <div className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest w-fit flex items-center gap-2 border ${isOnline ? "bg-green-500/10 text-green-600 border-green-500/20" : "bg-red-500/10 text-red-600 border-red-500/20"
+            }`}>
+            {isOnline ? <Wifi size={10} /> : <WifiOff size={10} />}
+            {isOnline ? "Cloud Sync Active" : "Site Mode (Local Cache)"}
+          </div>
+        </div>
+
+        {!isCreating && (
+          <Button onClick={() => setIsCreating(true)} className="bg-amber-500 hover:bg-amber-400 text-black font-black uppercase text-xs tracking-widest px-8 py-6 rounded-2xl shadow-xl active:scale-95 transition-all">
+            <Plus size={18} className="mr-2 stroke-[3px]" /> New Project
+          </Button>
+        )}
       </div>
 
-      {/* Project List / Table */}
-      {/* FIX 3: Use slightly lighter gray background for the card container (bg-gray-800) */}
-      <div className="bg-gray-800 rounded-xl shadow-2xl overflow-hidden border border-gray-700">
-        <table className="min-w-full divide-y divide-gray-700">
-          {/* FIX 4: Darker table header (bg-gray-900) for contrast against the card body */}
-          <thead className="bg-gray-900">
-            <tr>
-              {['Project Name', 'Location', 'Status', 'Last Updated', 'Actions'].map(header => (
-                <th key={header} className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                  {header}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          {/* FIX 5: Explicitly set text to white and ensure row background is inherited from the container or set */}
-          <tbody className="divide-y divide-gray-700 text-white">
-            {mockProjects.map(project => {
-              // FIX 6: Dynamic status badge styling for dark mode contrast
-              let statusClass = '';
-              if (project.status === 'Ongoing') {
-                statusClass = 'bg-amber-800/30 text-amber-300';
-              } else if (project.status === 'Draft') {
-                statusClass = 'bg-blue-800/30 text-blue-300';
-              } else if (project.status === 'Completed') {
-                statusClass = 'bg-green-800/30 text-green-300';
-              } else {
-                statusClass = 'bg-gray-600/30 text-gray-400';
-              }
+      {/* New Project Form */}
+      {isCreating && (
+        <form onSubmit={handleCreateNewProject} className="bg-surface p-8 rounded-4xl border-2 border-dashed border-amber-500/30 shadow-2xl animate-in slide-in-from-top-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {(['name', 'client_name', 'location'] as const).map((f) => (
+              <div key={f} className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-muted ml-1">{f.replace('_', ' ')}</label>
+                <input
+                  autoFocus={f === 'name'}
+                  className="w-full bg-main p-4 rounded-xl border border-theme outline-none focus:ring-2 ring-amber-500 text-sm font-bold transition-all text-theme"
+                  placeholder={placeholders[f]} // Added placeholders here
+                  value={newProject[f]}
+                  onChange={(e) => setNewProject({ ...newProject, [f]: e.target.value })}
+                />
+              </div>
+            ))}
+          </div>
+          <div className="flex gap-3 mt-8">
+            <Button type="submit" className="bg-amber-500 text-black font-black text-[10px] uppercase px-8 py-4 rounded-xl shadow-lg hover:bg-amber-400 transition-colors">
+              <Check className="w-4 h-4 mr-2" /> Confirm Creation
+            </Button>
+            <Button variant="ghost" type="button" onClick={() => setIsCreating(false)} className="text-muted font-black uppercase text-xs">
+              <X className="w-4 h-4 mr-2" /> Cancel
+            </Button>
+          </div>
+        </form>
+      )}
 
-              return (
-                <tr key={project.id} className="hover:bg-gray-700 transition">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-amber-400 cursor-pointer">
-                    {project.name}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                    {project.location}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusClass}`}>
-                      {project.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">
-                    {project.lastUpdated}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <a href="#" className="text-blue-400 hover:text-blue-300 transition">View Details</a>
+      {/* Project Table */}
+      <div className="bg-surface rounded-4xl border border-theme overflow-hidden shadow-2xl">
+        <div className="overflow-x-auto">
+          <table className="min-w-full">
+            <thead className="bg-main/50 border-b border-theme">
+              <tr>
+                {["Project Entity", "Client / Location", "Timeline", "Control"].map((h) => (
+                  <th key={h} className="px-10 py-5 text-left text-[10px] font-black uppercase tracking-[0.2em] text-muted">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-theme">
+              {!projects?.length ? (
+                <tr>
+                  <td colSpan={5} className="px-8 py-32 text-center text-muted text-[10px] font-black uppercase tracking-widest italic opacity-50">
+                    Local vault empty. Initialize a project to begin tracking.
                   </td>
                 </tr>
-              )
-            })}
-          </tbody>
-        </table>
-        {/* FIX 7: Footer message for Offline Core proof using a slightly different dark gray shade */}
-        <div className="p-4 bg-gray-900/70 text-sm text-center text-gray-500 border-t border-gray-700">
-          *Offline data read successful. Sync status: OK. (Demonstrates Phase 1: Offline Core)
+              ) : (
+                projects.map((p: Project) => (
+                  <tr key={p.id} className="hover:bg-amber-500/5 transition-colors group text-theme">
+                    <td className="px-10 py-8">
+                      <span className="font-black text-lg uppercase tracking-tight group-hover:text-amber-500 transition-colors">{p.name}</span>
+                    </td>
+                    <td className="px-10 py-8">
+                      <div className="text-xs font-black uppercase tracking-wider">{p.client_name}</div>
+                      <div className="text-[10px] text-muted flex items-center gap-1 uppercase font-bold mt-1"><MapPin size={10} className="text-amber-500" /> {p.location}</div>
+                    </td>
+                    <td className="px-10 py-8 text-[10px] font-mono text-muted">
+                      <div className="flex items-center gap-2">
+                        <Calendar className="w-3 h-3 text-amber-500" />
+                        {new Date(p.updated_at).toLocaleDateString()}
+                      </div>
+                    </td>
+                    <td className="px-10 py-8">
+                      <div className="flex items-center gap-5">
+                        <button className="flex items-center gap-1.5 text-blue-500 font-black uppercase text-[10px] tracking-widest hover:bg-blue-500 hover:text-white px-4 py-2 rounded-lg border border-blue-500/30 transition-all">
+                          <ExternalLink size={14} /> Open
+                        </button>
+                        <button onClick={() => handleDelete(p.id, p.name)} className="text-muted hover:text-red-500 transition-colors cursor-pointer">
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>

@@ -6,21 +6,29 @@ import Dexie, { type Table } from "dexie";
 
 export interface PendingSync {
   id?: number;
-  table: string;          // e.g. "projects", "boq_items", "measurements"
+  table: string;          // e.g. "projects", "boq_items", "measurements", "drawings"
   operation: "insert" | "update" | "delete";
   payload: any;           // The actual data to sync
-  created_at: number;     // timestamp
+  created_at: number;
 }
 
 // ------------------------------
 //  OFFLINE CACHED TABLES
-//  (for QS MVP)
 // ------------------------------
 
 export interface Project {
   id: string;
   name: string;
   client: string;
+  updated_at: number;
+}
+
+export interface Drawing {
+  id: string;
+  project_id: string;
+  name: string;
+  file_url: string;
+  file_type: string;
   updated_at: number;
 }
 
@@ -50,6 +58,7 @@ export interface Measurement {
 export class OfflineDB extends Dexie {
   pendingSync!: Table<PendingSync, number>;
   projects!: Table<Project, string>;
+  drawings!: Table<Drawing, string>;      // 👈 ADD THIS
   boqItems!: Table<BoqItem, string>;
   measurements!: Table<Measurement, string>;
 
@@ -58,8 +67,13 @@ export class OfflineDB extends Dexie {
 
     this.version(1).stores({
       pendingSync: "++id, table, operation, created_at",
+
       projects: "id, name, updated_at",
+
+      drawings: "id, project_id, updated_at",   // 👈 YOU ALREADY DID THIS
+
       boqItems: "id, project_id, updated_at",
+
       measurements: "id, boq_item_id, updated_at",
     });
   }

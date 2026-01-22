@@ -1,1 +1,44 @@
 @import "tailwindcss";
+
+/* ---- Dark (default) ---- */
+:root {
+  --background: #020617;     /* Deep Slate/Black - Professional Drafting Base */
+  --foreground: #f8fafc;     /* Off-white text */
+  --surface-1: #020617;      /* Main sidebars/headers */
+  --surface-2: #0f172a;      /* Cards and table rows */
+  --surface-3: #1e293b;      /* Hover states */
+  --border: #1e293b;         /* Slate-800 borders */
+  --muted: #94a3b8;
+  color-scheme: dark;
+}
+
+/* ---- Light (Soft Architectural Grey) ---- */
+:root.light {
+  --background: #f1f5f9;     /* Soft Slate-100 (Less bright than pure white) */
+  --foreground: #0f172a;     /* Deep Slate text for high visibility */
+  --surface-1: #ffffff;
+  --surface-2: #f8fafc;
+  --surface-3: #f1f5f9;
+  --border: #cbd5e1;         /* Stronger Slate-300 borders */
+  --muted: #64748b;
+  color-scheme: light;
+}
+
+@layer base {
+  * {
+    transition: background-color 300ms ease, border-color 300ms ease, color 300ms ease;
+  }
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    margin: 0;
+    padding: 0;
+  }
+}
+
+@layer utilities {
+  .bg-main { background-color: var(--background) !important; }
+  .bg-surface { background-color: var(--surface-2) !important; }
+  .border-theme { border-color: var(--border) !important; }
+  .text-theme { color: var(--foreground) !important; }
+}
