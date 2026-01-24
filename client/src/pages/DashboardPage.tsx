@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom"; // Added for navigation
 import {
   Plus,
   Wifi,
@@ -21,6 +22,7 @@ import toast from "react-hot-toast";
 import { useQueryClient } from "@tanstack/react-query";
 
 const DashboardPage: React.FC = () => {
+  const navigate = useNavigate(); // Navigation hook
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const { data: projects, isLoading } = useProjects();
@@ -29,7 +31,6 @@ const DashboardPage: React.FC = () => {
   const [isCreating, setIsCreating] = useState(false);
   const [newProject, setNewProject] = useState({ name: "", client_name: "", location: "" });
 
-  // Mapping for professional placeholders
   const placeholders: Record<string, string> = {
     name: "e.g., Two Rivers Mall",
     client_name: "e.g., Centum Real Estate",
@@ -38,7 +39,6 @@ const DashboardPage: React.FC = () => {
 
   const handleCreateNewProject = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Use user.id here to ensure we have the auth context
     if (!user?.id || !newProject.name || !newProject.client_name) {
       toast.error("Name and Client are required");
       return;
@@ -47,15 +47,16 @@ const DashboardPage: React.FC = () => {
     const toastId = toast.loading("Initializing project...");
 
     try {
+      // Fixed: Passing only the project object as per your repo
       await createProject({
         id: crypto.randomUUID(),
-        user_id: user.id, // ADDED THIS LINE to fix the TS error
+        user_id: user.id,
         name: newProject.name,
         client_name: newProject.client_name,
         location: newProject.location,
         status: 'active',
         updated_at: Date.now(),
-      }, user.id);
+      });
 
       await queryClient.invalidateQueries({ queryKey: ["projects", user.id] });
 
@@ -73,8 +74,8 @@ const DashboardPage: React.FC = () => {
 
     if (window.confirm(`Permanently delete "${name}"?`)) {
       try {
-        // Updated to include user.id as required by the repository
-        await deleteProject(id, user.id);
+        // Fixed: Passing only ID as per your repo
+        await deleteProject(id);
         await queryClient.invalidateQueries({ queryKey: ["projects", user.id] });
         toast.success("Record purged");
       } catch {
@@ -122,7 +123,7 @@ const DashboardPage: React.FC = () => {
                 <input
                   autoFocus={f === 'name'}
                   className="w-full bg-main p-4 rounded-xl border border-theme outline-none focus:ring-2 ring-amber-500 text-sm font-bold transition-all text-theme"
-                  placeholder={placeholders[f]} // Added placeholders here
+                  placeholder={placeholders[f]}
                   value={newProject[f]}
                   onChange={(e) => setNewProject({ ...newProject, [f]: e.target.value })}
                 />
@@ -176,7 +177,10 @@ const DashboardPage: React.FC = () => {
                     </td>
                     <td className="px-10 py-8">
                       <div className="flex items-center gap-5">
-                        <button className="flex items-center gap-1.5 text-blue-500 font-black uppercase text-[10px] tracking-widest hover:bg-blue-500 hover:text-white px-4 py-2 rounded-lg border border-blue-500/30 transition-all">
+                        <button 
+                          onClick={() => navigate(`/projects/${p.id}`)} // Linked to detail page
+                          className="flex items-center gap-1.5 text-blue-500 font-black uppercase text-[10px] tracking-widest hover:bg-blue-500 hover:text-white px-4 py-2 rounded-lg border border-blue-500/30 transition-all"
+                        >
                           <ExternalLink size={14} /> Open
                         </button>
                         <button onClick={() => handleDelete(p.id, p.name)} className="text-muted hover:text-red-500 transition-colors cursor-pointer">
