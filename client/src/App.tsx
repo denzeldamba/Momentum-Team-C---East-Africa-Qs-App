@@ -8,6 +8,10 @@ import MarketingPage from "./pages/MarketingPage";
 import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage"; 
 import AppShell from "./Components/layout/AppShell";
+import ProjectDetailPage from "./pages/ProjectDetailPage"
+
+// Hooks & Sync
+import { useSync } from "./hooks/useSync"; // Import the new hook
 
 // React Query
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -15,6 +19,10 @@ import { queryClient } from "./lib/queryClient";
 
 const RootComponent = () => {
   const { session, isLoading } = useAuth();
+
+  // ✅ Initialize the background sync engine
+  // This hook handles the logic of checking if the user is logged in internally
+  useSync();
 
   if (isLoading) {
     return (
@@ -27,13 +35,12 @@ const RootComponent = () => {
     );
   }
 
-  // ✅ Authenticated users: Pass the session prop to AppShell to fix ts(2741)
   if (session) {
     return (
       <AppShell session={session}>
         <Routes>
           <Route path="/dashboard" element={<DashboardPage />} />
-          {/* Redirect to dashboard if they land on / or /login while logged in */}
+          <Route path="/projects/:id" element={<ProjectDetailPage />} />
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/login" element={<Navigate to="/dashboard" replace />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
@@ -42,20 +49,14 @@ const RootComponent = () => {
     );
   }
 
-  // ❌ Not authenticated → public routes
   return <PublicRoutes />;
 };
 
 const PublicRoutes = () => {
   return (
     <Routes>
-      {/* Marketing */}
       <Route path="/" element={<MarketingPage />} />
-
-      {/* Auth */}
       <Route path="/login" element={<LoginPage />} />
-
-      {/* Catch-all: Send to home if trying to access deep links while logged out */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
