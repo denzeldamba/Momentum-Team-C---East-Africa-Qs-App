@@ -1,63 +1,68 @@
-import { db } from "../db/OfflineDb";
+import { db, type PendingSync } from "../db/OfflineDb";
 import { supabase } from "../lib/Supabase";
 
 let isSyncing = false;
+
+function hasTimestamp(payload: unknown): payload is { updated_at: number } & Record<string, unknown> {
+  return (
+    typeof payload === "object" &&
+    payload !== null &&
+    "updated_at" in payload &&
+    typeof (payload as { updated_at: unknown }).updated_at === "number"
+  );
+}
 
 export async function syncPending(userId: string) {
   if (isSyncing || !navigator.onLine) return;
   isSyncing = true;
 
   try {
-    // Get pending jobs sorted by creation time
     const queue = await db.pendingSync
       .where("status")
       .equals("pending")
       .sortBy("created_at");
 
-    for (const job of queue) {
+    for (const job of queue as PendingSync[]) {
       try {
         const { id, table, entity_id, payload, operation } = job;
 
-        // --------------------------
-        // FETCH SERVER VERSION (IF EXISTS)
-        // --------------------------
-        const { data: serverRecord, error: fetchError } =
-          await supabase
-            .from(table)
-            .select("updated_at")
-            .eq("id", entity_id)
-            .maybeSingle();
+        // 1. CONFLICT RESOLUTION (Fetch server version)
+        const { data: serverRecord, error: fetchError } = await supabase
+          .from(table)
+          .select("updated_at")
+          .eq("id", entity_id)
+          .maybeSingle();
 
         if (fetchError) throw fetchError;
 
-        // Convert payload.updated_at to milliseconds
-        const localUpdatedAt = new Date(payload.updated_at).getTime();
-        const serverUpdatedAt = serverRecord?.updated_at
-          ? new Date(serverRecord.updated_at).getTime()
-          : null;
-
-        // --------------------------
-        // LAST-WRITE-WINS LOGIC
-        // --------------------------
-        if (serverUpdatedAt !== null && serverUpdatedAt > localUpdatedAt) {
-          await db.pendingSync.update(id!, { status: "synced" });
-          continue; // Server is newer → skip local change
+        if (hasTimestamp(payload) && serverRecord?.updated_at) {
+          const serverUpdatedAt = new Date(serverRecord.updated_at).getTime();
+          if (serverUpdatedAt > payload.updated_at) {
+            // Server is newer, skip local update
+            await db.pendingSync.update(id!, { status: "synced" });
+            continue; 
+          }
         }
 
-        // --------------------------
-        // APPLY LOCAL CHANGE
-        // --------------------------
+        // 2. APPLY CHANGES
         if (operation === "insert" || operation === "update") {
+          const supabasePayload: Record<string, unknown> = 
+            typeof payload === "object" && payload !== null ? { ...payload } : {};
+          
+          // Convert numeric timestamps to ISO strings for Postgres
+          if (hasTimestamp(payload)) {
+            supabasePayload.updated_at = new Date(payload.updated_at).toISOString();
+          }
+          if (supabasePayload.created_at && typeof supabasePayload.created_at === 'number') {
+            supabasePayload.created_at = new Date(supabasePayload.created_at).toISOString();
+          }
+
+          // Ensure user_id is set correctly for RLS
+          supabasePayload.user_id = userId;
+
           const { error } = await supabase
             .from(table)
-            .upsert(
-              {
-                ...payload,
-                updated_at: new Date(payload.updated_at).toISOString(), // ✅ Convert to ISO string
-                created_by: userId,
-              },
-              { onConflict: "id" }
-            );
+            .upsert(supabasePayload, { onConflict: "id" });
 
           if (error) throw error;
         }
@@ -66,18 +71,16 @@ export async function syncPending(userId: string) {
           const { error } = await supabase
             .from(table)
             .delete()
-            .eq("id", entity_id);
+            .eq("id", entity_id)
+            .eq("user_id", userId); // Security: only delete if owner
 
           if (error) throw error;
         }
 
-        // Mark job as synced
         await db.pendingSync.update(id!, { status: "synced" });
       } catch (jobError) {
-        console.error("Conflict sync failed:", jobError);
-
-        // Mark job as failed for retry
-        await db.pendingSync.update(job.id!, { status: "failed" });
+        console.error(`Sync failed for ${job.table}:`, jobError);
+        // Leave as pending to retry later, or mark as failed
       }
     }
   } finally {

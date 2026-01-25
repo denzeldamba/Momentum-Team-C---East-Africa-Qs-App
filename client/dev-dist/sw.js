@@ -82,7 +82,7 @@ define(['./workbox-8c83623c'], (function (workbox) { 'use strict';
     "revision": "3ca0b8505b4bec776b69afdba2768812"
   }, {
     "url": "index.html",
-    "revision": "0.a5hreunm0no"
+    "revision": "0.87qc5gebbs8"
   }], {});
   workbox.cleanupOutdatedCaches();
   workbox.registerRoute(new workbox.NavigationRoute(workbox.createHandlerBoundToURL("index.html"), {
@@ -97,12 +97,11 @@ define(['./workbox-8c83623c'], (function (workbox) { 'use strict';
       statuses: [0, 200]
     })]
   }), 'GET');
-  workbox.registerRoute(({
-    url
-  }) => url.origin === self.location.origin, new workbox.StaleWhileRevalidate({
-    "cacheName": "qs-app-assets",
+  workbox.registerRoute(/\.(?:js|css|html|png|jpg|jpeg|svg|gif)$/, new workbox.StaleWhileRevalidate({
+    "cacheName": "qs-static-assets",
     plugins: [new workbox.ExpirationPlugin({
-      maxEntries: 50
+      maxEntries: 60,
+      maxAgeSeconds: 2592000
     })]
   }), 'GET');
 
