@@ -1,66 +1,89 @@
-import { db } from "../db/OfflineDb";
-import { supabase } from "../lib/Supabase"; // Verify this path matches your Supabase file
+import { db, type PendingSync } from "../db/OfflineDb";
+import { supabase } from "../lib/Supabase";
 
 let isSyncing = false;
 
-export async function syncPending() {
-  // Prevent double-syncing or syncing while offline
+function hasTimestamp(payload: unknown): payload is { updated_at: number } & Record<string, unknown> {
+  return (
+    typeof payload === "object" &&
+    payload !== null &&
+    "updated_at" in payload &&
+    typeof (payload as { updated_at: unknown }).updated_at === "number"
+  );
+}
+
+export async function syncPending(userId: string) {
   if (isSyncing || !navigator.onLine) return;
   isSyncing = true;
 
   try {
-    // Get all pending actions ordered by time
     const queue = await db.pendingSync
-      .orderBy("created_at")
-      .toArray();
+      .where("status")
+      .equals("pending")
+      .sortBy("created_at");
 
-    for (const item of queue) {
-      const { table, operation, payload, id } = item;
-      let error = null;
-
+    for (const job of queue as PendingSync[]) {
       try {
-        if (operation === "insert") {
-          const { error: err } = await supabase.from(table).insert(payload);
-          error = err;
+        const { id, table, entity_id, payload, operation } = job;
+
+        // 1. CONFLICT RESOLUTION (Fetch server version)
+        const { data: serverRecord, error: fetchError } = await supabase
+          .from(table)
+          .select("updated_at")
+          .eq("id", entity_id)
+          .maybeSingle();
+
+        if (fetchError) throw fetchError;
+
+        if (hasTimestamp(payload) && serverRecord?.updated_at) {
+          const serverUpdatedAt = new Date(serverRecord.updated_at).getTime();
+          if (serverUpdatedAt > payload.updated_at) {
+            // Server is newer, skip local update
+            await db.pendingSync.update(id!, { status: "synced" });
+            continue; 
+          }
         }
 
-        if (operation === "update") {
-          const { error: err } = await supabase.from(table)
-            .update(payload)
-            .eq("id", payload.id);
-          error = err;
+        // 2. APPLY CHANGES
+        if (operation === "insert" || operation === "update") {
+          const supabasePayload: Record<string, unknown> = 
+            typeof payload === "object" && payload !== null ? { ...payload } : {};
+          
+          // Convert numeric timestamps to ISO strings for Postgres
+          if (hasTimestamp(payload)) {
+            supabasePayload.updated_at = new Date(payload.updated_at).toISOString();
+          }
+          if (supabasePayload.created_at && typeof supabasePayload.created_at === 'number') {
+            supabasePayload.created_at = new Date(supabasePayload.created_at).toISOString();
+          }
+
+          // Ensure user_id is set correctly for RLS
+          supabasePayload.user_id = userId;
+
+          const { error } = await supabase
+            .from(table)
+            .upsert(supabasePayload, { onConflict: "id" });
+
+          if (error) throw error;
         }
 
         if (operation === "delete") {
-          // This matches the payload { id } sent by your projectsrepo
-          const { error: err } = await supabase.from(table)
+          const { error } = await supabase
+            .from(table)
             .delete()
-            .eq("id", payload.id);
-          error = err;
+            .eq("id", entity_id)
+            .eq("user_id", userId); // Security: only delete if owner
+
+          if (error) throw error;
         }
 
-        // Only remove from local "Pending" list if Supabase confirms success
-        if (!error) {
-          await db.pendingSync.delete(id!);
-        } else {
-          console.error(`Sync failed for ${operation}:`, error.message);
-          break; // Stop loop to keep operations in correct chronological order
-        }
-      } catch (e) {
-        console.error("Connection error during sync:", e);
-        break; 
+        await db.pendingSync.update(id!, { status: "synced" });
+      } catch (jobError) {
+        console.error(`Sync failed for ${job.table}:`, jobError);
+        // Leave as pending to retry later, or mark as failed
       }
     }
-  } catch (err) {
-    console.error("Critical SyncEngine error:", err);
   } finally {
     isSyncing = false;
   }
-}
-
-// Automatically attempt sync when the app starts or comes back online
-if (typeof window !== "undefined") {
-  window.addEventListener('online', syncPending);
-  // Optional: Run every 30 seconds as a heartbeat
-  setInterval(syncPending, 30000);
 }
