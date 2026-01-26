@@ -1,74 +1,69 @@
 import { db } from "../OfflineDb";
 import type { Project } from "../OfflineDb";
 
-/**
- * Creates a project locally and queues it for cloud synchronization.
- * Storing the user_id locally is critical for offline persistence.
- */
 export async function createProject(project: Project, userId: string) {
+  const now = Date.now();
+  
+  // Ensure the object strictly matches the Project interface
   const projectWithUser: Project = { 
     ...project, 
     user_id: userId,
-    updated_at: Date.now() 
+    updated_at: now,
+    created_at: project.created_at || now // Ensure we don't lose the original timestamp
   }; 
 
   await db.transaction("rw", db.projects, db.pendingSync, async () => {
-    // 1. Persist to Dexie (IndexedDB)
     await db.projects.put(projectWithUser); 
 
-    // 2. Queue for Supabase synchronization
     await db.pendingSync.add({
       table: "projects",
+      entity_id: projectWithUser.id,
       operation: "insert",
-      payload: projectWithUser,
-      created_at: Date.now(),
+      payload: projectWithUser, // Full object for Upsert
+      status: "pending",
+      created_at: now,
     });
   });
 }
 
-/**
- * Updates a project locally.
- * We pass userId to ensure we are only updating records owned by the logged-in user.
- */
 export async function updateProject(project: Project, userId: string) {
+  const now = Date.now();
   const updatedProject: Project = {
     ...project,
-    user_id: userId, // Re-enforce user_id
-    updated_at: Date.now()
+    user_id: userId,
+    updated_at: now
   };
 
   await db.transaction("rw", db.projects, db.pendingSync, async () => {
-    // 1. Update local cache
     await db.projects.put(updatedProject);
 
-    // 2. Queue update operation for cloud sync
     await db.pendingSync.add({
       table: "projects",
+      entity_id: updatedProject.id,
       operation: "update",
       payload: updatedProject,
-      created_at: Date.now(),
+      status: "pending",
+      created_at: now,
     });
   });
 }
 
-/**
- * Removes project from local Dexie and queues deletion for Supabase.
- */
 export async function deleteProject(id: string, userId: string) {
   try {
     await db.transaction("rw", db.projects, db.pendingSync, async () => {
-      // 1. Verify ownership locally before deleting
       const project = await db.projects.get(id);
       if (!project || project.user_id !== userId) return;
 
-      // 2. Remove from local store
       await db.projects.delete(id);
 
-      // 3. Log the sync operation (Payload only needs the ID for deletion)
       await db.pendingSync.add({
         table: "projects",
+        entity_id: id,
         operation: "delete",
-        payload: { id }, 
+        // ✅ Added user_id here. Supabase RLS needs this to verify 
+        // that the person deleting the record owns it.
+        payload: { id, user_id: userId }, 
+        status: "pending",
         created_at: Date.now(),
       });
     });
@@ -78,13 +73,9 @@ export async function deleteProject(id: string, userId: string) {
   }
 }
 
-/**
- * Retrieves all local projects for the authenticated user.
- * Uses the Dexie index we created in OfflineDb for high performance.
- */
 export async function getProjects(userId?: string) {
   if (!userId) return []; 
-  
+  // This uses the index we created in OfflineDB version 3
   return await db.projects
     .where("user_id")
     .equals(userId)
@@ -92,9 +83,6 @@ export async function getProjects(userId?: string) {
     .sortBy("updated_at");
 }
 
-/**
- * Single Project Fetch (Needed for the Project Details / Open flow)
- */
 export async function getProjectById(id: string, userId: string) {
   const project = await db.projects.get(id);
   if (!project || project.user_id !== userId) return null;
