@@ -13,21 +13,10 @@ import toast from "react-hot-toast";
 /* Supabase Client Configuration (Restored & Enhanced for Offline) */
 /* ------------------------------------------------------------------ */
 const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL as string,
-  import.meta.env.VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY as string,
-  {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: true,
-      storage: window.localStorage,
-    },
-  }
+    "https://bnkoocieycisdixgecdt.supabase.co" ,
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJua29vY2lleWNpc2RpeGdlY2R0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ3NTc1NDcsImV4cCI6MjA4MDMzMzU0N30.dH0OWmVnaR31qx9VaEtMT_3bCpKZ_OwWFmRJN4RLG-Y"
 );
 
-/* ------------------------------------------------------------------ */
-/* Types */
-/* ------------------------------------------------------------------ */
 interface Message {
   message: string | null;
   type: "success" | "error" | null;
