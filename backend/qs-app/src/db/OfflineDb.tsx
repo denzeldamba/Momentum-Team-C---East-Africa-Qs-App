@@ -21,9 +21,11 @@ export interface PendingSync {
 export interface Project {
   id: string;
   name: string;
-  client: string;
+  client_name: string;
   status: "draft" | "active" | "completed";
+  location: string;
   updated_at: number;
+  created_by: string;
 }
 
 /* ---------------------------
